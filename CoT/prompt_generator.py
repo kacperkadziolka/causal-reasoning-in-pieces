@@ -42,15 +42,16 @@ def generate_few_shot_prompt(df, num_examples=3, task_statement=None, random_sta
     # Default task statement if none provided
     if not task_statement:
         task_statement = (
-            "Based on the provided premise, identify all variables and their correlations. "
-            "Then, systematically apply marginal and conditional independencies to compile the final causal undirected skeleton."
+            "Based on the provided premise, apply the PC algorithm to determine the causal undirected skeleton from the given statistical relations among variables."
+            # "Based on the provided premise, identify all variables and their correlations. "
+            # "Then, systematically apply marginal and conditional independencies to compile the final causal undirected skeleton."
         )
 
     # Select the sample rows for a few-shot examples
     examples = df.sample(num_examples, random_state=random_state)
 
     standard_prompt = []
-    single_line_prompt = []
+    # single_line_prompt = []
     question_counter = 1
 
     for index, row in examples.iterrows():
@@ -60,24 +61,25 @@ def generate_few_shot_prompt(df, num_examples=3, task_statement=None, random_sta
         raw_input = row['input']
         premise = extract_premise(raw_input)
         answer = row['expected_answer']
-        single_line_answer = row.get('expected_answer_single_line', '')
+        # single_line_answer = row.get('expected_answer_single_line', '')
 
-        standard_prompt.append(f"Question {question_counter}:")
+        standard_prompt.append(f"Example {question_counter}:\n")
+        standard_prompt.append(f"Task Description: {task_statement}")
         standard_prompt.append(f"Premise: {premise}")
-        standard_prompt.append(f"Task: {task_statement}")
-        standard_prompt.append(f"Answer {question_counter}:")
+        standard_prompt.append(f"Answer:")
+        # standard_prompt.append(f"Answer {question_counter}:")
         standard_prompt.append(answer)
         standard_prompt.append("")  # Add an empty line for separation
 
         # Construct the single-line prompt with '\n' as newline indicators
-        single_line_part = (
-            f"Question {question_counter}:\\n"
-            f"Premise: {premise.replace('\\n', '\\\\n')}\\n"
-            f"Task: {task_statement}\\n"
-            f"Answer {question_counter}:\\n"
-            f"{single_line_answer}"
-        )
-        single_line_prompt.append(single_line_part)
+        # single_line_part = (
+        #     f"Question {question_counter}:\\n"
+        #     f"Premise: {premise.replace('\\n', '\\\\n')}\\n"
+        #     f"Task: {task_statement}\\n"
+        #     f"Answer {question_counter}:\\n"
+        #     f"{single_line_answer}"
+        # )
+        # single_line_prompt.append(single_line_part)
 
         question_counter += 1
 
@@ -91,30 +93,31 @@ def generate_few_shot_prompt(df, num_examples=3, task_statement=None, random_sta
     new_premise_escaped = new_premise.replace('\n', '\\n')
 
     # Standard prompt
-    standard_prompt.append(f"Question {question_counter}:")
+    standard_prompt.append(f"Example {question_counter}:")
+    standard_prompt.append(f"Task Description: {task_statement}")
     standard_prompt.append(f"Premise: {new_premise}")
-    standard_prompt.append(f"Task: {task_statement}")
-    standard_prompt.append(f"Answer {question_counter}:")
+    standard_prompt.append(f"Answer:")
+    # standard_prompt.append(f"Answer {question_counter}:")
     # Leave the answer blank for the model to generate
 
     # Single-line prompt
-    single_line_new = (
-        f"Question {question_counter}:\\n"
-        f"Premise: {new_premise_escaped}\\n"
-        f"Task: {task_statement}\\n"
-        f"Answer {question_counter}:"
-    )
-    single_line_prompt.append(single_line_new)
+    # single_line_new = (
+    #     f"Question {question_counter}:\\n"
+    #     f"Premise: {new_premise_escaped}\\n"
+    #     f"Task: {task_statement}\\n"
+    #     f"Answer {question_counter}:"
+    # )
+    # single_line_prompt.append(single_line_new)
 
     return {
         "standard_prompt": standard_prompt,
-        "single_line_prompt": single_line_prompt,
+        # "single_line_prompt": single_line_prompt,
         "new_question_index": new_index,
         "selected_sample_indices": examples.index.tolist(),
     }
 
 
-def save_prompts_to_files(standard_prompt, single_line_prompt, standard_output_path, single_line_output_path):
+def save_prompts_to_files(standard_prompt, standard_output_path, single_line_prompt = None, single_line_output_path = None):
     """
     Saves the standard and single-line prompts to their respective files.
 
@@ -128,23 +131,23 @@ def save_prompts_to_files(standard_prompt, single_line_prompt, standard_output_p
         f.write("\n".join(standard_prompt))
     print(f"Standard few-shot prompt saved to {standard_output_path}")
 
-    with open(single_line_output_path, 'w', encoding='utf-8') as f:
-        f.write(" ".join(single_line_prompt))
-    print(f"Single-line few-shot prompt saved to {single_line_output_path}")
+    # with open(single_line_output_path, 'w', encoding='utf-8') as f:
+    #     f.write(" ".join(single_line_prompt))
+    # print(f"Single-line few-shot prompt saved to {single_line_output_path}")
 
 
 def main():
-    csv_file_path = "data/v0.0.1/train.csv"
+    csv_file_path = "data/v0.0.4/train.csv"
     standard_prompt_file_path = "few_shot_prompt.txt"
-    single_line_prompt_file_path = "few_shot_prompt_single_line.txt"
+    # single_line_prompt_file_path = "few_shot_prompt_single_line.txt"
 
     df =  pd.read_csv(csv_file_path)
 
     result = generate_few_shot_prompt(df)
     standard_prompt = result["standard_prompt"]
-    single_line_prompt = result["single_line_prompt"]
+    # single_line_prompt = result["single_line_prompt"]
 
-    save_prompts_to_files(standard_prompt, single_line_prompt, standard_prompt_file_path, single_line_prompt_file_path)
+    save_prompts_to_files(standard_prompt, standard_prompt_file_path)
 
 
 if __name__ == "__main__":

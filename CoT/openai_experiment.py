@@ -12,6 +12,41 @@ from CoT.groq_experiment import extract_edges_incident_format, compare_edges, ag
 from CoT.prompt_generator import generate_few_shot_prompt
 
 
+system_prompt = """
+You are an expert in causal inference and data analysis, proficient in applying the PC (Peter-Clark) algorithm. Follow these steps in the provided order to respond accurately:
+
+Step 1: Read the Data
+- Identify extracted nodes and their correlations.
+- Note marginal and conditional independencies.
+
+Step 2: Initialize the Graph
+- Create edges between all correlated node pairs.
+- List connections for each node.
+
+Step 3: Apply Marginal Independencies
+- Remove edges based on marginal independencies.
+- Specify removed edges, if any.
+
+Step 4: Apply Conditional Independencies
+- Remove edges based on conditional independencies.
+- Specify which independencies led to each removal.
+
+Step 5: Compile the Causal Undirected Skeleton
+- Construct the final graph structure
+- List each node with its connected nodes.
+- Ensure all applied independencies are reflected accurately.
+
+**Example of Step 5:**
+
+Step 5: Compile the Causal Undirected Skeleton
+In this graph:
+  - Node A is connected to nodes B, C, D.
+  - Node B is connected to nodes A, C.
+  - Node C is connected to nodes A, B.
+  - Node D is connected to node A.
+"""
+
+
 def run_single_experiment(client: OpenAI, df: DataFrame) -> Optional[dict]:
     """
     Run a single experiment to compare expected edges with the model's predicted edges.
@@ -40,7 +75,7 @@ def run_single_experiment(client: OpenAI, df: DataFrame) -> Optional[dict]:
             messages=[
                 {
                     "role": "system",
-                    "content": "You are ChatGPT, an expert in causal inference and data analysis."
+                    "content": system_prompt
                 },
                 {
                     "role": "user",
@@ -82,8 +117,8 @@ def run_multiple_experiments(client: OpenAI, df: DataFrame, num_experiments: int
             failed_experiments += 1
 
         # Throttle the requests to avoid Groq rate limiting
-        print("Throttling: Waiting for 1 minute and 5 seconds before the next request...")
-        time.sleep(65)
+        #print("Throttling: Waiting for 1 minute and 5 seconds before the next request...")
+        time.sleep(5)
 
     # Aggregate metrics from multiple experiments
     if results:
@@ -112,7 +147,7 @@ def main():
     )
 
     # Run a single experiment
-    #print(run_single_experiment(client, df))
+    # print(run_single_experiment(client, df))
 
     # Run multiple experiments
     run_multiple_experiments(client, df, num_experiments=50)

@@ -1,6 +1,5 @@
 venv
 .env
 CoT/data
-data
 experiments
 .idea
