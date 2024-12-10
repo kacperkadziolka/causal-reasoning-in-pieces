@@ -93,7 +93,7 @@ def generate_few_shot_prompt(df, num_examples=3, task_statement=None, random_sta
     new_premise_escaped = new_premise.replace('\n', '\\n')
 
     # Standard prompt
-    standard_prompt.append(f"Example {question_counter}:")
+    standard_prompt.append(f"Example {question_counter}:\n")
     standard_prompt.append(f"Task Description: {task_statement}")
     standard_prompt.append(f"Premise: {new_premise}")
     standard_prompt.append(f"Answer:")
