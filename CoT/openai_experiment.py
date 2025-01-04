@@ -1,5 +1,4 @@
 import os
-import time
 from typing import Optional
 
 import pandas as pd
@@ -116,10 +115,6 @@ def run_multiple_experiments(client: OpenAI, df: DataFrame, num_experiments: int
         else:
             failed_experiments += 1
 
-        # Throttle the requests to avoid Groq rate limiting
-        #print("Throttling: Waiting for 1 minute and 5 seconds before the next request...")
-        time.sleep(5)
-
     # Aggregate metrics from multiple experiments
     if results:
         aggregated_metrics = aggregate_metrics(results)
@@ -138,7 +133,7 @@ def main():
 
     # Load the dataframe
     script_directory = os.path.dirname(os.path.abspath(__file__))
-    csv_file_path = os.path.join(script_directory, "data/v0.0.3/train.csv")
+    csv_file_path = os.path.join(script_directory, "data/v0.0.4/train.csv")
     df = pd.read_csv(csv_file_path)
 
     # Initialize the GROQ client
