@@ -44,26 +44,15 @@ def extract_edges_incident_format(answer: str) -> set:
             if no_conn_match:
                 continue
 
-            print("LINE")
-            print(line)
-
             # Case 2: "... is connected to node(s) ..."
             node_conn_match = conn_pattern.match(line)
             if node_conn_match:
                 node = node_conn_match.group(1)
                 connections_str = node_conn_match.group(2)
 
-                print("NODE")
-                print(node)
-                print("CONNECTION STR")
-                print(connections_str)
-
                 # Split on commas or 'and'
                 connections = re.split(r"(?:,\s*|and\s+)", connections_str)
                 connections = [c.strip() for c in connections if c.strip()]
-
-                print("DUPA")
-                print(connections)
 
                 # Build edges
                 for conn in connections:

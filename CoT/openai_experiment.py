@@ -7,7 +7,8 @@ from openai import OpenAI
 from pandas import DataFrame
 from tqdm import tqdm
 
-from CoT.groq_experiment import extract_edges_incident_format, compare_edges, aggregate_metrics, display_metrics
+from CoT.answer_extractor import extract_edges_incident_format
+from CoT.groq_experiment import compare_edges, aggregate_metrics, display_metrics
 from CoT.prompt_generator import generate_few_shot_prompt
 
 
@@ -91,7 +92,19 @@ def run_single_experiment(client: OpenAI, df: DataFrame) -> Optional[dict]:
         answer_edges = extract_edges_incident_format(completion.choices[0].message.content)
 
         # Compare the expected edges with the model's predicted edges
-        return compare_edges(expected_edges, answer_edges)
+        result = compare_edges(expected_edges, answer_edges)
+        if not  result["exact_match"]:
+            # Log the question and mismatched result to a separate file
+            mismatch_log_path = "mismatch_log.txt"
+            with open(mismatch_log_path, "a", encoding="utf-8") as logfile:
+                logfile.write("=========================================\n")
+                logfile.write(f"Question: {question_row['question']}\n")
+                logfile.write(f"Expected Answer:\n{expected_answer}\n\n")
+                logfile.write(f"Model's Answer:\n{completion.choices[0].message.content}\n\n")
+                logfile.write(f"Comparison Result: {result}\n")
+                logfile.write("=========================================\n\n")
+
+        return result
     except Exception as e:
         print(f"Experiment failed: {e}")
         return None  # Skip the experiment if an error occurs
