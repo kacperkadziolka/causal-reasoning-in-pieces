@@ -9,6 +9,7 @@ def extract_edges_incident_format(answer: str) -> set:
     :return: A set of edges extracted from the answer, represented as sorted tuples.
     """
     try:
+        # Normalize line breaks
         answer = answer.replace("\r\n", "\n").replace("\r", "\n")
 
         # Locate Step 5
@@ -27,12 +28,19 @@ def extract_edges_incident_format(answer: str) -> set:
 
         edges = set()
 
-        # Pattern to match lines like:
-        #   - Node A has no connections.
+        # Pattern for lines:
+        #   - Node X has no connections.
+        no_conn_pattern = re.compile(r"^- Node\s+(\w+)\s+has\s+no\s+connections\.$", re.IGNORECASE)
+
+        # Pattern to match lines:
         #   - Node A is connected to node C.
+        #   - Node A is connected only to node D.
         #   - Node B is connected to nodes A, C and D.
-        no_conn_pattern = re.compile(r"^- Node\s+(\w+)\s+has\s+no\s+connections\.$")
-        conn_pattern = re.compile(r"^- Node\s+(\w+)\s+is\s+connected\s+to\s+nodes?\s+(.+)\.$")
+        #   - Node C is connected to node A and node B.
+        conn_pattern = re.compile(
+            r"^- Node\s+(\w+)\s+is\s+connected(?:\s+only)?\s+to\s+nodes?\s+(.+)\.$",
+            re.IGNORECASE
+        )
 
         for line in adjacency_section:
             line = line.strip()
@@ -49,6 +57,9 @@ def extract_edges_incident_format(answer: str) -> set:
             if node_conn_match:
                 node = node_conn_match.group(1)
                 connections_str = node_conn_match.group(2)
+
+                # Remove "node " from connections (handles "node A and node B")
+                connections_str = re.sub(r"\bnode\s+", "", connections_str, flags=re.IGNORECASE)
 
                 # Split on commas or 'and'
                 connections = re.split(r"(?:,\s*|and\s+)", connections_str)

@@ -93,16 +93,6 @@ def run_single_experiment(client: OpenAI, df: DataFrame) -> Optional[dict]:
 
         # Compare the expected edges with the model's predicted edges
         result = compare_edges(expected_edges, answer_edges)
-        if not  result["exact_match"]:
-            # Log the question and mismatched result to a separate file
-            mismatch_log_path = "mismatch_log.txt"
-            with open(mismatch_log_path, "a", encoding="utf-8") as logfile:
-                logfile.write("=========================================\n")
-                logfile.write(f"Question: {question_row['question']}\n")
-                logfile.write(f"Expected Answer:\n{expected_answer}\n\n")
-                logfile.write(f"Model's Answer:\n{completion.choices[0].message.content}\n\n")
-                logfile.write(f"Comparison Result: {result}\n")
-                logfile.write("=========================================\n\n")
 
         return result
     except Exception as e:

@@ -61,5 +61,24 @@
       ["A", "C"],
       ["B", "C"]
     ]
+  },
+  {
+    "name": "new format",
+    "answer": "Step 1: Read the Data\n\n- Extracted variables: A, B, C, D\n- Correlations: (A, C), (A, D), (B, C), (B, D), (C, D)\n- Marginal Independencies: (A, B)\n- Conditional Independencies:\n  - (C, D) are independent given A and B\n\nStep 2: Initialize the Graph\n\n- Created edges between all correlated variable pairs.\n- Initial edges: {(A, C), (A, D), (B, C), (B, D), (C, D)}\n\nStep 3: Apply Marginal Independencies\n\n- No edges removed in this step, as (A, B) is the only marginal independence and it does not imply any edge removal.\n\nStep 4: Apply Conditional Independencies\n\n- Because C and D are independent given A and B, we can state that there is no edge between C and D.\n\nStep 5: Compile the Causal Undirected Skeleton\nIn this graph:\n  - Node A is connected to nodes C and D.\n  - Node B is connected to nodes C and D.\n  - Node C is connected to node A and node B.\n  - Node D is connected to node A and node B. \n  - Node D has no direct connection to C, due to the independence given A and B.\n\nFinal structure:\n- Node A is connected to nodes C and D.\n- Node B is connected to nodes C and D.\n- Node C is connected to nodes A and B.\n- Node D is connected to nodes A and B. \n\nResulting skeleton:\n- A-C\n- A-D\n- B-C\n- B-D\n- C and D do not have an edge.",
+    "expected_edges": [
+      ["A", "C"],
+      ["A", "D"],
+      ["B", "C"],
+      ["B", "D"]
+    ]
+  },
+  {
+    "name": "'is connected only to...'",
+    "answer": "Step 1: Read the Data\n\n- Extracted variables: A, B, C, D\n- Correlations: (A, D), (B, D), (C, D)\n- Marginal Independencies:\n  - A is independent of B\n  - A is independent of C\n  - B is independent of C\n- Conditional Independencies:\n  - (A, B) are independent given C\n  - (A, C) are independent given B\n  - (B, C) are independent given A\n\nStep 2: Initialize the Graph\n\n- Created edges between all correlated variable pairs.\n- Initial edges: {(A, D), (B, D), (C, D)}\n\nStep 3: Apply Marginal Independencies\n\n- No edges removed in this step.\n\nStep 4: Apply Conditional Independencies\n\n- Because A is independent of B, there is no edge between A and B.\n- Because A is independent of C, there is no edge between A and C.\n- Because B is independent of C, there is no edge between B and C.\n\nStep 5: Compile the Causal Undirected Skeleton\nIn this graph:\n  - Node A is connected only to node D.\n  - Node B is connected only to node D.\n  - Node C is connected only to node D.\n  - Node D has connections to A, B, C.",
+    "expected_edges": [
+      ["A", "D"],
+      ["C", "D"],
+      ["B", "D"]
+    ]
   }
 ]
