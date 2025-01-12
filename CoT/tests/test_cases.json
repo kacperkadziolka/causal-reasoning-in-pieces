@@ -80,5 +80,14 @@
       ["C", "D"],
       ["B", "D"]
     ]
+  },
+  {
+    "name": "Missing 'in this graph' statement",
+    "answer": "Let's follow the steps to apply the PC algorithm to the provided premise concerning variables A, B, C, and D.\n\n**Step 1: Read the Data**\n- Extracted nodes: A, B, C, D.\n- Correlations among pairs: \n  - A ↔ C\n  - A ↔ D\n  - B ↔ C\n  - B ↔ D\n  - C ↔ D\n- Marginal independencies:\n  - A ⊥ B\n- Conditional independencies:\n  - A ⊥ D | B, C\n  - A ⊥ D | C\n  - B ⊥ D | A, C\n  - B ⊥ D | C\n\n**Step 2: Initialize the Graph**\n- Create edges based on correlations:\n  - Edges (initial connections):\n    - A -- C\n    - A -- D\n    - B -- C\n    - B -- D\n    - C -- D\n- Initial list of connections for each node:\n  - A: C, D\n  - B: C, D\n  - C: A, B, D\n  - D: A, B, C\n\n**Step 3: Apply Marginal Independencies**\n- A is independent of B:\n  - Remove the edge between A and B.\n- Specification of removed edges:\n  - Removed edge: A -- B\n  \n**Step 4: Apply Conditional Independencies**\n- Analyze and remove edges based on the provided conditional independencies:\n  - A and D are independent given B and C: Remove the edge A -- D.\n    - Removed edge: A -- D (conditional independence holds when controlling for B and C)\n  - A and D are also independent given C: confirms the above.\n  - B and D are independent given A and C: Remove the edge B -- D.\n    - Removed edge: B -- D (conditional independence holds when controlling for A and C)\n  - B and D are also independent given C: confirms the above.\n  \n- Summary of removed edges based on conditional independencies:\n  - Removed edge: A -- D (due to A ⊥ D | B, C)\n  - Removed edge: B -- D (due to B ⊥ D | A, C)\n\n**Step 5: Compile the Causal Undirected Skeleton**\nIn this final graph:\n- Node A is connected to node C.\n- Node B is connected to node C.\n- Node C is connected to nodes A, B, and D.\n- Node D is connected to node C.\n\nFinal connections:\n- A: C\n- B: C\n- C: A, B, D\n- D: C\n\nThus, the causal undirected skeleton for the variables A, B, C, and D reflects all applied independencies accurately:\n- A is only connected to C.\n- B is only connected to C.\n- C is connected to both A and B, as well as D.\n- D is only connected to C. \n\nThis structure accurately represents the relationships and independence statements provided.",
+    "expected_edges": [
+      ["A", "D"],
+      ["C", "D"],
+      ["B", "D"]
+    ]
   }
 ]

@@ -14,20 +14,33 @@ def extract_edges_incident_format(answer: str) -> set:
 
         # Locate Step 5
         step_5_pattern = r"Step 5: Compile the Causal Undirected Skeleton"
-        step_5_match = re.search(step_5_pattern, answer)
+        step_5_match = re.search(step_5_pattern, answer, flags=re.IGNORECASE)
         if not step_5_match:
             raise ValueError("Step 5 section not found in the answer.")
 
-        # Find the start of the adjacency list
-        adjacency_start = answer.find("In this graph:", step_5_match.end())
-        if adjacency_start == -1:
-            raise ValueError("Adjacency list section not found in Step 5.")
+        # Slice the answer from right after Step 5
+        adjacency_section = answer[step_5_match.end():].splitlines()
 
-        # Split lines from the adjacency list
-        adjacency_section = answer[adjacency_start:].splitlines()
+        """
+        Below code works well with the few-shot example, where the answer are more consistent with
+        requested format. In zer-shot settings, model often fails to includes the "In this graph:" 
+        line in the output.
+        """
+        # # Find the start of the adjacency list
+        # adjacency_start = answer.find("In this graph:", step_5_match.end())
+        # if adjacency_start == -1:
+        #     raise ValueError("Adjacency list section not found in Step 5.")
+        #
+        # # Split lines from the adjacency list
+        # adjacency_section = answer[adjacency_start:].splitlines()
 
         edges = set()
 
+        """
+        Following code works well with the few-shot example, where the answer are more consistent,
+        and each starts with - Node. In zero-shot settings, model often fails to include the "node"
+        word.
+        """
         # Pattern for lines:
         #   - Node X has no connections.
         no_conn_pattern = re.compile(r"^- Node\s+(\w+)\s+has\s+no\s+connections\.$", re.IGNORECASE)
@@ -42,8 +55,18 @@ def extract_edges_incident_format(answer: str) -> set:
             re.IGNORECASE
         )
 
+        # no_conn_pattern = re.compile(
+        #     r"^-\s*(?:Node\s+)?(\w+)\s+has\s+no\s+connections\.?",
+        #     re.IGNORECASE
+        # )
+        # conn_pattern = re.compile(
+        #     r"^-\s*(?:Node\s+)?(\w+)\s+is\s+connected\s+to\s+(?:node[s]?\s+)?(.+?)\.?\s*$",
+        #     re.IGNORECASE
+        # )
+
         for line in adjacency_section:
             line = line.strip()
+
             if not line.startswith("- Node"):
                 continue  # skip lines that don't describe adjacency
 
