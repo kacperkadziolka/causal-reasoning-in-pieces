@@ -13,7 +13,8 @@ from CoT.prompt_generator import generate_few_shot_prompt
 
 
 system_prompt = """
-You are an expert in causal inference and data analysis, proficient in applying the PC (Peter-Clark) algorithm. Follow these steps in the provided order to respond accurately:
+You are an expert in causal inference and data analysis, proficient in applying the PC (Peter-Clark) algorithm. 
+Follow these steps in the provided order to respond accurately:
 
 Step 1: Read the Data
 - Identify extracted nodes and their correlations.
@@ -58,8 +59,16 @@ def run_single_experiment(client: OpenAI, df: DataFrame) -> Optional[dict]:
     try:
         # Generate the prompt for LLM
         print("\nGenerating a few-shot prompt...")
-        prompt_data = generate_few_shot_prompt(df, num_examples=3)
+        prompt_data = generate_few_shot_prompt(df, num_examples=0)
         prompt_content = "\n".join(prompt_data["standard_prompt"])
+
+        # Debug: Print the system prompt
+        # print("\nSystem Prompt:")
+        # print(system_prompt)
+
+        # Debug: Print the generated prompt
+        # print("\nGenerated Prompt:")
+        # print(prompt_content)
 
         # Expected answer
         new_question_index = prompt_data["new_question_index"]

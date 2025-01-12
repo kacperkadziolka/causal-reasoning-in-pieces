@@ -42,9 +42,10 @@ def generate_few_shot_prompt(df, num_examples=3, task_statement=None, random_sta
     # Default task statement if none provided
     if not task_statement:
         task_statement = (
-            "Based on the provided premise, apply the PC algorithm to determine the causal undirected skeleton from the given statistical relations among variables."
-            # "Based on the provided premise, identify all variables and their correlations. "
+            # "Given the provided premise, apply the PC algorithm to determine the causal undirected skeleton from the given statistical relations among variables."
+            # "First, identify all variables and their correlations."
             # "Then, systematically apply marginal and conditional independencies to compile the final causal undirected skeleton."
+            "Given the provided premise, apply the PC algorithm following the described step-by-step instructions to compute the causal undirected skeleton."
         )
 
     # Select the sample rows for a few-shot examples
@@ -93,10 +94,10 @@ def generate_few_shot_prompt(df, num_examples=3, task_statement=None, random_sta
     new_premise_escaped = new_premise.replace('\n', '\\n')
 
     # Standard prompt
-    standard_prompt.append(f"Example {question_counter}:\n")
+    # standard_prompt.append(f"Example {question_counter}:\n")
     standard_prompt.append(f"Task Description: {task_statement}")
     standard_prompt.append(f"Premise: {new_premise}")
-    standard_prompt.append(f"Answer:")
+    # standard_prompt.append(f"Answer:")
     # standard_prompt.append(f"Answer {question_counter}:")
     # Leave the answer blank for the model to generate
 
