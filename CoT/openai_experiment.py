@@ -148,7 +148,7 @@ def main():
     csv_file_path = os.path.join(script_directory, "data/v0.0.4/train.csv")
     df = pd.read_csv(csv_file_path)
 
-    # Initialize the GROQ client
+    # Initialize the API client
     client = OpenAI(
         api_key=api_key,
     )

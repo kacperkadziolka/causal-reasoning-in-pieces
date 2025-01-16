@@ -1,6 +1,16 @@
 import re
 import pandas as pd
 
+# The user prompt used for experiment without the system prompt, thus no CoT and provided expected structure
+user_prompt="""
+Given the provided premise, apply the PC (Peter-Clark) algorithm to compute the causal undirected skeleton.
+Please present the computed causal undirected skeleton as an incident graph representation, following the format of the example below:
+Answer:
+  - Node A is connected to nodes B, C, D.
+  - Node B is connected to nodes A, C.
+  - Node C is connected to nodes A, B.
+  - Node D is connected to node A.
+"""
 
 def extract_premise(text):
     """
@@ -39,14 +49,12 @@ def generate_few_shot_prompt(df, num_examples=3, task_statement=None, random_sta
     Returns:
     - dict: Dictionary containing standard prompts, single-line prompts, new question details, and selected sample indices.
     """
-    # Default task statement if none provided
-    if not task_statement:
-        task_statement = (
-            # "Given the provided premise, apply the PC algorithm to determine the causal undirected skeleton from the given statistical relations among variables."
-            # "First, identify all variables and their correlations."
-            # "Then, systematically apply marginal and conditional independencies to compile the final causal undirected skeleton."
-            "Given the provided premise, apply the PC algorithm following the described step-by-step instructions to compute the causal undirected skeleton."
-        )
+    # Used for experiment where we are leveraging the CoT in the system prompt
+    task_statement = "Given the provided premise, apply the PC (Peter-Clark) algorithm following the described step-by-step instructions to compute the causal undirected skeleton."
+
+    # In case if no system prompt is provided, we can use the user prompt defined before
+    # task_statement = user_prompt
+
 
     # Select the sample rows for a few-shot examples
     examples = df.sample(num_examples, random_state=random_state)
