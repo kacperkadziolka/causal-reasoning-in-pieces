@@ -59,7 +59,7 @@ def run_single_experiment(client: OpenAI, df: DataFrame) -> Optional[dict]:
     try:
         # Generate the prompt for LLM
         print("\nGenerating a few-shot prompt...")
-        prompt_data = generate_few_shot_prompt(df, num_examples=0)
+        prompt_data = generate_few_shot_prompt(df, num_examples=3)
         prompt_content = "\n".join(prompt_data["standard_prompt"])
 
         # Debug: Print the system prompt
@@ -145,7 +145,7 @@ def main():
 
     # Load the dataframe
     script_directory = os.path.dirname(os.path.abspath(__file__))
-    csv_file_path = os.path.join(script_directory, "data/v0.0.4/train.csv")
+    csv_file_path = os.path.join(script_directory, "data/v0.0.7/train.csv")
     df = pd.read_csv(csv_file_path)
 
     # Initialize the API client

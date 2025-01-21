@@ -8,3 +8,4 @@ Adjacency graph representation.
 step-by-step instructions.  
 - v0.0.6 - Revert the changes from v0.0.5, therefore provide the same structure as in the v0.0.4. However, problems with
 5 variables has been extracted.
+- v0.0.7 - Extract problem with 6 (most possible) number of variables. Structure remains same.

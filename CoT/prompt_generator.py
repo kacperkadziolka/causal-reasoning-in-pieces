@@ -103,9 +103,10 @@ def generate_few_shot_prompt(df, num_examples=3, task_statement=None, random_sta
 
     # Standard prompt
     # standard_prompt.append(f"Example {question_counter}:\n")
+    standard_prompt.append(f"Question:\n")
     standard_prompt.append(f"Task Description: {task_statement}")
     standard_prompt.append(f"Premise: {new_premise}")
-    # standard_prompt.append(f"Answer:")
+    standard_prompt.append(f"Answer:")
     # standard_prompt.append(f"Answer {question_counter}:")
     # Leave the answer blank for the model to generate
 
