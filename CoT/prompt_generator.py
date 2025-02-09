@@ -12,6 +12,12 @@ Answer:
   - Node D is connected to node A.
 """
 
+# The user prompt used for experiment without system prompt, but still with a few-shot examples with only the expected structure
+user_prompt_with_structure="""
+Given the provided premise, apply the PC (Peter-Clark) algorithm to compute the causal undirected skeleton.
+Please present the computed causal undirected skeleton, following the format from the provided examples.
+"""
+
 def extract_premise(text):
     """
     Extracts the premise from the input text.

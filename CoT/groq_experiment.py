@@ -1,6 +1,4 @@
-import ast
 import os
-import re
 import time
 from typing import Optional
 
@@ -10,167 +8,44 @@ from groq import Groq
 from pandas import DataFrame
 from tqdm import tqdm
 
+from CoT.answer_extractor import extract_edges_incident_format
 from prompt_generator import generate_few_shot_prompt
 
 
-def extract_edges(answer: str) -> set:
-    """
-    Extract the causal edges from the provided answer string.
+system_prompt = """
+You are an expert in causal inference and data analysis, proficient in applying the PC (Peter-Clark) algorithm. 
+Follow these steps in the provided order to respond accurately:
 
-    :param answer: The expected answer or answer returned by the GROQ API.
-    :return: A set of edges extracted from the answer.
-    """
-    try:
-        step_5_index = answer.find("Step 5: Compile the Causal Undirected Skeleton")
-        if step_5_index == -1:
-            raise ValueError("Step 5 section not found in the answer.")
+Step 1: Read the Data
+- Identify extracted nodes and their correlations.
+- Note marginal and conditional independencies.
 
-        edges_start = answer.find("Edges:", step_5_index) + len("Edges:")
-        edges_raw = answer[edges_start:].strip()
+Step 2: Initialize the Graph
+- Create edges between all correlated node pairs.
+- List connections for each node.
 
-        match = re.search(r"{(.*?)}", edges_raw)
-        if not match:
-            raise ValueError("Edges section not properly formatted or missing braces.")
+Step 3: Apply Marginal Independencies
+- Remove edges based on marginal independencies.
+- Specify removed edges, if any.
 
-        # Extract the content inside the braces and add quotes around edge variables (e.g., (E,  B) -> ('E', 'B'))
-        edges_content = match.group(0)
-        edges_content = re.sub(r"(\w+)", r"'\1'", edges_content)
+Step 4: Apply Conditional Independencies
+- Remove edges based on conditional independencies.
+- Specify which independencies led to each removal.
 
-        # Parse the edges and normalize them as sorted tuples
-        edges = set(tuple(sorted(edge)) for edge in ast.literal_eval(edges_content))
-        return edges
-    except Exception as e:
-        raise RuntimeError(f"Failed to extract edges: {e}")
+Step 5: Compile the Causal Undirected Skeleton
+- Construct the final graph structure
+- List each node with its connected nodes.
+- Ensure all applied independencies are reflected accurately.
 
+**Example of Step 5:**
 
-def extract_edges_incident_format(answer: str) -> set:
-    """
-    Extract the causal edges from the provided answer string using the adjacency list format.
-
-    :param answer: The expected answer or answer returned by the GROQ API.
-    :return: A set of edges extracted from the answer, represented as sorted tuples.
-    """
-    #print("Answer:", answer)
-    try:
-        # Locate Step 5
-        step_5_pattern = r"Step 5: Compile the Causal Undirected Skeleton"
-        step_5_match = re.search(step_5_pattern, answer)
-        if not step_5_match:
-            raise ValueError("Step 5 section not found in the answer.")
-
-        # Find the start of the adjacency list
-        adjacency_start = answer.find("In this graph:", step_5_match.end())
-        if adjacency_start == -1:
-            raise ValueError("Adjacency list section not found in Step 5.")
-
-        # Extract the adjacency list lines
-        adjacency_section = answer[adjacency_start:].splitlines()
-        #print("Adjacency Section:", adjacency_section)
-
-        # Initialize set for edges
-        edges = set()
-
-        # Iterate over each line in the adjacency section
-        for line in adjacency_section:
-            line = line.strip()
-            #print("Line:", line)
-            # Match lines like: "- Node A is connected to nodes C, D, F."
-            node_conn_match = re.match(r"- Node (\w+) is connected to nodes (.+)\.", line)
-            if node_conn_match:
-                node = node_conn_match.group(1)
-                connections = node_conn_match.group(2).split(", ")
-                #print(f"Node: {node}, Connections: {connections}")
-                for conn in connections:
-                    # Add edge as sorted tuple to avoid duplicates
-                    edge = tuple(sorted([node, conn]))
-                    #print("Edge:", edge)
-                    edges.add(edge)
-                continue  # Proceed to next line after processing
-        #print("Edges:", edges)
-        return edges
-    except Exception as e:
-        raise RuntimeError(f"Failed to extract edges: {e}")
-
-
-def compare_edges(expected_edges: set, answer_edges: set) -> dict:
-    """
-    Compare the expected edges with the model's predicted edges.
-
-    :param expected_edges: The ground-truth edges.
-    :param answer_edges: The model's predicted edges.
-    :return: A dictionary with metrics for comparison.
-    """
-    # Check if the edges are an exact match
-    exact_match = expected_edges == answer_edges
-
-    if exact_match:
-        print("The model's predicted edges match the expected edges!")
-    else:
-        print("Mismatch found:")
-        print(f"Expected edges: {expected_edges}")
-        print(f"Model edges: {answer_edges}")
-        print(f"Missing in model: {expected_edges - answer_edges}")
-        print(f"Extra in model: {answer_edges - expected_edges}")
-
-    # Calculate detailed metrics
-    true_positive = len(expected_edges & answer_edges)  # Correctly predicted edges
-    false_positive = len(answer_edges - expected_edges)  # Extra edges in prediction
-    false_negative = len(expected_edges - answer_edges)  # Missing edges in prediction
-
-    return {
-        "true_positive": true_positive,
-        "false_positive": false_positive,
-        "false_negative": false_negative,
-        "expected_count": len(expected_edges),
-        "predicted_count": len(answer_edges),
-        "exact_match": exact_match,
-    }
-
-
-def aggregate_metrics(results: list) -> dict:
-    """
-    Aggregate metrics from multiple experiments.
-
-    :param results: A list of comparison results from multiple experiments.
-    :return: A dictionary with aggregated metrics.
-    """
-    total_true_positive = sum(r["true_positive"] for r in results)
-    total_false_positive = sum(r["false_positive"] for r in results)
-    total_false_negative = sum(r["false_negative"] for r in results)
-    total_expected_count = sum(r["expected_count"] for r in results)
-    total_exact_matches = sum(1 for r in results if r["exact_match"])
-    total_prompts = len(results)
-
-    precision = total_true_positive / (total_true_positive + total_false_positive) if (total_true_positive + total_false_positive) > 0 else 0
-    recall = total_true_positive / (total_true_positive + total_false_negative) if (total_true_positive + total_false_negative) > 0 else 0
-    f1_score = (2 * precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
-    accuracy = total_true_positive / total_expected_count if total_expected_count > 0 else 0
-    exact_match_ratio = total_exact_matches / total_prompts if total_prompts > 0 else 0
-
-    return {
-        "accuracy": accuracy,
-        "precision": precision,
-        "recall": recall,
-        "f1_score": f1_score,
-        "exact_match_ratio": exact_match_ratio,
-        "total_exact_matches": total_exact_matches,
-        "total_prompts": total_prompts,
-    }
-
-
-def display_metrics(metrics: dict) -> None:
-    """
-    Display all the metrics in a user-friendly format.
-
-    :param metrics: Dictionary of aggregated metrics.
-    """
-    print("\nAggregate Metrics:")
-    for key, value in metrics.items():
-        # Format floating-point numbers with 2 decimal places
-        if isinstance(value, float):
-            print(f"{key.replace('_', ' ').capitalize()}: {value:.2f}")
-        else:
-            print(f"{key.replace('_', ' ').capitalize()}: {value}")
+Step 5: Compile the Causal Undirected Skeleton
+In this graph:
+  - Node A is connected to nodes B, C, D.
+  - Node B is connected to nodes A, C.
+  - Node C is connected to nodes A, B.
+  - Node D is connected to node A.
+"""
 
 
 def run_single_experiment(client: Groq, df: DataFrame) -> Optional[dict]:
@@ -184,8 +59,16 @@ def run_single_experiment(client: Groq, df: DataFrame) -> Optional[dict]:
     try:
         # Generate the prompt for LLM
         print("\nGenerating a few-shot prompt...")
-        prompt_data = generate_few_shot_prompt(df, num_examples=3)
+        prompt_data = generate_few_shot_prompt(df, num_examples=2)
         prompt_content = "\n".join(prompt_data["standard_prompt"])
+
+        # Debug: Print the system prompt
+        # print("\nSystem Prompt:")
+        # print(system_prompt)
+
+        # Debug: Print the generated prompt
+        # print("\nGenerated Prompt:")
+        # print(prompt_content)
 
         # Expected answer
         new_question_index = prompt_data["new_question_index"]
@@ -199,11 +82,15 @@ def run_single_experiment(client: Groq, df: DataFrame) -> Optional[dict]:
         chat_completion = client.chat.completions.create(
             messages=[
                 {
+                    "role": "system",
+                    "content": system_prompt
+                },
+                {
                     "role": "user",
                     "content": prompt_content,
                 }
             ],
-            model="llama3-70b-8192",
+            model="llama-3.3-70b-versatile",
         )
 
         # Debug: Print the model's response
@@ -239,8 +126,8 @@ def run_multiple_experiments(client: Groq, df: DataFrame, num_experiments: int) 
             failed_experiments += 1
 
         # Throttle the requests to avoid Groq rate limiting
-        print("Throttling: Waiting for 1 minute and 5 seconds before the next request...")
-        time.sleep(65)
+        print("Throttling: Waiting for 1.5 minute before the next request...")
+        time.sleep(90)
 
     # Aggregate metrics from multiple experiments
     if results:
@@ -260,7 +147,7 @@ def main():
 
     # Load the dataframe
     script_directory = os.path.dirname(os.path.abspath(__file__))
-    csv_file_path = os.path.join(script_directory, "data/v0.0.3/train.csv")
+    csv_file_path = os.path.join(script_directory, "data/v0.0.6/train.csv")
     df = pd.read_csv(csv_file_path)
 
     # Initialize the GROQ client
@@ -269,7 +156,7 @@ def main():
     )
 
     # Run a single experiment
-    #print(run_single_experiment(client, df))
+    # print(run_single_experiment(client, df))
 
     # Run multiple experiments
     run_multiple_experiments(client, df, num_experiments=50)

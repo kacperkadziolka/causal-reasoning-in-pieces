@@ -9,3 +9,5 @@ step-by-step instructions.
 - v0.0.6 - Revert the changes from v0.0.5, therefore provide the same structure as in the v0.0.4. However, problems with
 5 variables has been extracted.
 - v0.0.7 - Extract problem with 6 (most possible) number of variables. Structure remains same.
+- v0.0.8 - Extract problem with 4 (least possible) number of variables. Delete the step-by-step CoT reasoning in the 
+examples, and instead only provides computed final answer (causal undirected graph).

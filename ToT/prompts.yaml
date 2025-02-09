@@ -1,0 +1,92 @@
+steps_instructions:
+  1: |
+    Read the Data
+    - Identify extracted nodes and their correlations.
+    - Note all independencies.
+  2: |
+    Initialize the Graph
+    - Create edges between all correlated node pairs.
+    - List connections for each node.
+  3: |
+    Apply Independencies
+    - Remove edges based on independencies.
+    - Specify which independencies l  ed to each removal.
+  4: |
+    Compile the Causal Undirected Skeleton
+    - List each node with its connected nodes.
+    - Ensure all applied independencies are reflected accurately.
+
+
+steps_examples:
+  1: |
+    Example for Step 1 – Read the Data:
+    - Extracted variables: A, B, C, D
+    - Correlations: (A, B), (A, C), (A, D), (B, C), (B, D), (C, D)
+    - Independencies:
+      - (B, D) are independent given A
+      - (B, D) are independent given A, C
+      - (C, D) are independent given A
+      - (C, D) are independent given A, B
+  2: |
+    Example for Step 2 – Initialize the Graph:
+    - Created edges between all correlated variable pairs.
+    - Initial edges: {(A, B), (A, C), (A, D), (B, C), (B, D), (C, D)}
+  3: |
+    Example for Step 3 – Apply Independencies:
+    - Because B and D are independent given A, there is no edge between B and D.
+    - Because C and D are independent given A, there is no edge between C and D.
+  4: |
+    Example for Step 4 – Compile the Causal Undirected Skeleton:
+    In this graph:
+      - Node A is connected to nodes B, D, C.
+      - Node B is connected to nodes C.
+      - Node C has no connections.
+      - Node D has no connections.
+
+
+generate_prompt_template: |
+  Current state:
+  {current_state}
+  
+  Next step instruction (focus exclusively on this step):
+  {next_step_instruction}
+  
+  Step example (for guidance, only for this step):
+  {next_step_example}
+  
+  IMPORTANT:
+  - Your response MUST ONLY address the above step.
+  - DO NOT generate any content or steps beyond what is requested for this step.
+
+
+evaluate_prompt_template: |
+  Given the following previous chain-of-thought:
+  {previous_state}
+  
+  And the following most recent candidate step:
+  {recent_step}
+  
+  Please evaluate the quality of the candidate step with respect to these constraints:
+  {instruction_constraints}
+  
+  Rate on a scale from 0 (poor) to 10 (excellent) how well the candidate step satisfies the constraints.
+  
+  IMPORTANT:
+  - Your response MUST be exactly one integer number between 0 and 10.
+  - Do NOT include any extra text, explanation, or additional characters.
+  
+  For example, if you believe the state is very good, simply respond with:
+  9
+
+
+system_prompt: |
+  You are an expert in causal inference and data analysis, proficient in applying the PC (Peter-Clark) algorithm.
+  Your overall task is to extract the causal undirected skeleton from a given premise by following a multi-step process.
+  
+  When generating candidate thought steps, focus ONLY on the current step as indicated by the instructions and examples provided.
+  Do not include information or steps beyond the one requested.
+
+
+initial_prompt: |
+  Task Description: Given the provided premise, apply the PC (Peter-Clark) algorithm only by following instructions given below. Do not provide any additional information or assumptions.
+  Premise: Suppose there is a closed system of 4 variables, A, B, C and D. All the statistical relations among these 4 variables are as follows: A correlates with B. A correlates with C. A correlates with D. B correlates with C. B correlates with D. C correlates with D. However, B and C are independent given A. B and C are independent given A and D. B and D are independent given A. B and D are independent given A and C. C and D are independent given A. C and D are independent given A and B.

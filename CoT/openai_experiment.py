@@ -7,8 +7,7 @@ from openai import OpenAI
 from pandas import DataFrame
 from tqdm import tqdm
 
-from CoT.answer_extractor import extract_edges_incident_format
-from CoT.groq_experiment import compare_edges, aggregate_metrics, display_metrics
+from CoT.answer_extractor import extract_edges_incident_format, compare_edges, aggregate_metrics, display_metrics
 from CoT.prompt_generator import generate_few_shot_prompt
 
 
@@ -63,12 +62,12 @@ def run_single_experiment(client: OpenAI, df: DataFrame) -> Optional[dict]:
         prompt_content = "\n".join(prompt_data["standard_prompt"])
 
         # Debug: Print the system prompt
-        # print("\nSystem Prompt:")
-        # print(system_prompt)
+        print("\nSystem Prompt:")
+        print(system_prompt)
 
         # Debug: Print the generated prompt
-        # print("\nGenerated Prompt:")
-        # print(prompt_content)
+        print("\nGenerated Prompt:")
+        print(prompt_content)
 
         # Expected answer
         new_question_index = prompt_data["new_question_index"]
@@ -145,7 +144,7 @@ def main():
 
     # Load the dataframe
     script_directory = os.path.dirname(os.path.abspath(__file__))
-    csv_file_path = os.path.join(script_directory, "data/v0.0.7/train.csv")
+    csv_file_path = os.path.join(script_directory, "data/v0.0.4/train.csv")
     df = pd.read_csv(csv_file_path)
 
     # Initialize the API client
@@ -154,10 +153,10 @@ def main():
     )
 
     # Run a single experiment
-    # print(run_single_experiment(client, df))
+    print(run_single_experiment(client, df))
 
     # Run multiple experiments
-    run_multiple_experiments(client, df, num_experiments=50)
+    # run_multiple_experiments(client, df, num_experiments=50)
 
 
 if __name__ == "__main__":
