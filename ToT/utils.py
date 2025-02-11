@@ -8,9 +8,12 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 
-# Load the configuration
-with open('config.json', 'r') as config_file:
-    config = json.load(config_file)
+def load_config(filepath: str = "config.json") -> dict[str, any]:
+    """
+    Load the configuration from a JSON file.
+    """
+    with open(filepath, "r") as file:
+        return json.load(file)
 
 
 def load_prompts(filepath: str = "prompts.yaml") -> dict[str, str]:
@@ -22,6 +25,11 @@ def load_prompts(filepath: str = "prompts.yaml") -> dict[str, str]:
 
 
 prompts = load_prompts()
+config = load_config()
+
+log_directory = config.get("log_directory")
+if not os.path.exists(log_directory):
+    os.makedirs(log_directory)
 
 
 def call_llm(client: OpenAI, user_prompt: str, system_prompt: Optional[str] = None, num_samples: int = 1) -> list[str]:

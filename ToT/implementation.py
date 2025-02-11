@@ -1,14 +1,15 @@
 import logging
+import os
 from typing import Optional
 
-from ToT.utils import prompts, call_llm, get_openai_client
-
+from ToT.utils import prompts, call_llm, get_openai_client, log_directory
 
 logging.basicConfig(
+    filename=os.path.join(log_directory, "ToT.log"),
+    filemode="w",
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
 )
-
 
 def generate_thoughts(state: str, next_step_instruction: str, next_step_example: str, k: int) -> list[str]:
     """
@@ -86,18 +87,26 @@ def search(initial_state: str, current_step: int, max_steps: int, threshold: int
     steps_examples: list[str] = prompts["steps_examples"]
     next_step_example: str = steps_examples[current_step]
 
+    # Get the next step header
+    steps_headers: list[str] = prompts["steps_headers"]
+    next_step_header: str = steps_headers[current_step]
+
     # Generate candidate next thoughts
-    candidates: list[str] = generate_thoughts(state=initial_state,
-                                              next_step_instruction=next_step_instruction,
-                                              next_step_example=next_step_example,
-                                              k=3)
+    candidates: list[str] = generate_thoughts(
+        state=initial_state,
+        next_step_instruction=next_step_instruction,
+        next_step_example=next_step_example,
+        k=3
+    )
 
     # Evaluate each candidate state
     evaluated_candidates: list[tuple[str, int]] = []
     for candidate in candidates:
-        # Append candidate thought to state
-        # TODO: Make this more robust
-        new_state: str = f"{initial_state} \n\n {candidate}"
+        candidate_step_text = prompts["step_template"].format(
+            step_number=next_step_header,
+            candidate_step=candidate
+        )
+        new_state: str = f"{initial_state}\n\n{candidate_step_text}"
 
         score: int = evaluate_state(
             previous_state=initial_state,
@@ -106,15 +115,26 @@ def search(initial_state: str, current_step: int, max_steps: int, threshold: int
         )
         evaluated_candidates.append((new_state, score))
 
-    # Evaluate candidates above threshold
+    # Filter out candidates that do not meet the threshold
     evaluated_candidates = [candidate for candidate in evaluated_candidates if candidate[1] >= threshold]
     if not evaluated_candidates:
-        logging.info("No candidate state meets the threshold. Backtracking...")
+        logging.info("No candidate at step %d meets the threshold. Backtracking...", current_step)
         return None
 
-    # Sort candidates by score and explore the best one
-    best_candidate, best_score = max(evaluated_candidates, key=lambda x: x[1])
-    logging.info("Best candidate at step %d with score %d", current_step, best_score)
+    # Sort candidates by score (highest first)
+    evaluated_candidates.sort(key=lambda x: x[1], reverse=True)
 
-    # Recursive call for the next step
-    return search(initial_state=best_candidate, current_step=current_step + 1, max_steps=max_steps, threshold=threshold)
+    # Try each candidate in turn
+    for new_state, score in evaluated_candidates:
+        logging.info("Trying candidate at step %d with score %d", current_step, score)
+        result = search(
+            initial_state=new_state,
+            current_step=current_step + 1,
+            max_steps=max_steps,
+            threshold=threshold
+        )
+        if result is not None:
+            return result
+
+    # If none of the candidates at the current level lead to a final solution
+    return None
