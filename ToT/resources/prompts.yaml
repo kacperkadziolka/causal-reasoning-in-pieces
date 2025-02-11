@@ -25,9 +25,9 @@ steps_instructions:
         - Node B is connected to node A.
         - Node C is connected to node A.
         - Node D has no connections.
-#    Compile the Causal Undirected Skeleton
-#    - List each node with its connected nodes.
-#    - Ensure all applied independencies are reflected accurately.
+    Compile the Causal Undirected Skeleton
+    - List each node with its connected nodes.
+    - Ensure all applied independencies are reflected accurately.
 
 
 steps_examples:

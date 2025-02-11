@@ -1,14 +1,21 @@
 import json
 import os
+import time
 from functools import lru_cache
-from typing import Optional
 
+import torch
 import yaml
 from dotenv import load_dotenv
+from huggingface_hub import login
 from openai import OpenAI
+from transformers import Pipeline, pipeline
 
 
-def load_config(filepath: str = "config.json") -> dict[str, any]:
+def log_time(message):
+    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {message}")
+
+
+def load_config(filepath: str = "resources/config.json") -> dict[str, any]:
     """
     Load the configuration from a JSON file.
     """
@@ -16,7 +23,7 @@ def load_config(filepath: str = "config.json") -> dict[str, any]:
         return json.load(file)
 
 
-def load_prompts(filepath: str = "prompts.yaml") -> dict[str, str]:
+def load_prompts(filepath: str = "resources/prompts.yaml") -> dict[str, str]:
     """
     Load the prompts from a YAML file.
     """
@@ -32,37 +39,6 @@ if not os.path.exists(log_directory):
     os.makedirs(log_directory)
 
 
-def call_llm(client: OpenAI, user_prompt: str, system_prompt: Optional[str] = None, num_samples: int = 1) -> list[str]:
-    """
-    Calls the LLM with a given prompt and returns a list of responses depends on the number of samples.
-    If system_prompt is provided, it is sent along with the user_prompt; otherwise, only the user_prompt is sent.
-    """
-    responses = []
-
-    messages = []
-    if system_prompt:
-        messages.append({
-            "role": "system",
-            "content": system_prompt
-        })
-    messages.append({
-        "role": "user",
-        "content": user_prompt
-    })
-
-    for _ in range(num_samples):
-        completion = client.chat.completions.create(
-            model=config["model_name"],
-            messages=messages,
-            max_tokens=config["max_tokens"],
-            temperature=config["temperature"],
-        )
-        response = completion.choices[0].message.content
-        responses.append(response.strip())
-
-    return responses
-
-
 @lru_cache
 def get_openai_client() -> OpenAI:
     """
@@ -75,3 +51,32 @@ def get_openai_client() -> OpenAI:
         raise ValueError("API key not found. Please set the OPENAI_API_KEY environment variable in your .env file.")
 
     return OpenAI(api_key=api_key)
+
+
+@lru_cache()
+def get_huggingface_pipeline() -> Pipeline:
+    """
+    Create a Hugging Face pipeline.
+    """
+    load_dotenv()
+    huggingface_token = os.getenv('HUGGINGFACE_TOKEN')
+
+    log_time("Creating a huggingface pipeline object")
+    log_time(f"Torch: {torch.__version__}")
+    log_time(f"CUDA: {torch.version.cuda}")
+
+    log_time("Logging into Hugging Face hub...")
+    login(token=huggingface_token)
+
+    log_time("Loading the Llama model...")
+    model_id: str = config["hf_model_name"]
+    cache_dir = config["hf_cache_dir"]
+    cache_kwargs = dict(cache_dir=cache_dir, local_files_only=True)
+
+    return pipeline(
+            "text-generation",
+            model=model_id,
+            model_kwargs=cache_kwargs,
+            torch_dtype=torch.bfloat16,
+            device_map="auto",
+        )

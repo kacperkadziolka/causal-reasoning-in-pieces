@@ -2,7 +2,8 @@ import logging
 import os
 from typing import Optional
 
-from ToT.utils import prompts, call_llm, get_openai_client, log_directory
+from ToT.llm.llm_factory import get_llm_model
+from ToT.utils import prompts, log_directory
 
 logging.basicConfig(
     filename=os.path.join(log_directory, "ToT.log"),
@@ -26,8 +27,8 @@ def generate_thoughts(state: str, next_step_instruction: str, next_step_example:
 
     logging.info("generate_thoughts - Sending prompt to model:\n%s", generate_prompt)
 
-    responses =  call_llm(
-        client=get_openai_client(),
+    llm_model = get_llm_model()
+    responses =  llm_model.generate(
         user_prompt=generate_prompt,
         system_prompt=system_prompt,
         num_samples=k
@@ -53,7 +54,11 @@ def evaluate_state(previous_state: str, recent_step: str, instructions_constrain
 
     logging.info("evaluate_state - Sending prompt to model:\n%s", evaluate_prompt)
 
-    response = call_llm(client=get_openai_client(), user_prompt=evaluate_prompt, num_samples=1)[0]
+    llm_model = get_llm_model()
+    response = llm_model.generate(
+        user_prompt=evaluate_prompt,
+        num_samples=1
+    )[0]
 
     logging.info("evaluate_state - Model response:\n%s", response)
 
