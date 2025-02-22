@@ -1,0 +1,337 @@
+/home/kacperkadziolka/miniconda3/envs/local_env/bin/python /home/kacperkadziolka/University/Master's thesis/ToT/main.py
+Running Experiments:  50%|█████     | 1/2 [01:03<01:03, 63.25s/it]
+========================================
+
+Premise:
+Premise: Suppose there is a closed system of 5 variables, A, B, C, D and E. All the statistical relations among these 5 variables are as follows: A correlates with B. A correlates with C. A correlates with D. A correlates with E. B correlates with C. B correlates with D. B correlates with E. C correlates with D. C correlates with E. D correlates with E. However, A and C are independent given B. A and C are independent given B and E. B and E are independent given A. B and E are independent given A and C. B and E are independent given A, C and D. B and E are independent given A and D. C and E are independent given A. C and E are independent given A and B. C and E are independent given A, B and D. C and E are independent given A and D. C and E are independent given B. D and E are independent given A. D and E are independent given A and B. D and E are independent given A, B and C. D and E are independent given A and C.
+
+========================================
+
+========================================
+
+Correct answer:
+Step 1: Read the Data
+- Extracted nodes: A, B, C, D, E
+- Correlations:
+  - Node A is correlated with nodes B, C, D, E.
+  - Node B is correlated with nodes A, C, D, E.
+  - Node C is correlated with nodes A, B, D, E.
+  - Node D is correlated with nodes A, B, C, E.
+  - Node E is correlated with nodes A, B, C, D.
+- Marginal Independencies: None
+- Conditional Independencies:
+  - Nodes A and C are independent given node B
+  - Nodes A and C are independent given nodes B, E
+  - Nodes B and E are independent given node A
+  - Nodes B and E are independent given nodes A, C
+  - Nodes B and E are independent given nodes A, C, D
+  - Nodes B and E are independent given nodes A, D
+  - Nodes C and E are independent given node A
+  - Nodes C and E are independent given nodes A, B
+  - Nodes C and E are independent given nodes A, B, D
+  - Nodes C and E are independent given nodes A, D
+  - Nodes C and E are independent given node B
+  - Nodes D and E are independent given node A
+  - Nodes D and E are independent given nodes A, B
+  - Nodes D and E are independent given nodes A, B, C
+  - Nodes D and E are independent given nodes A, C
+
+Step 2: Initialize the Graph
+Created edges between all correlated variable pairs. In this graph:
+  - Node A is connected to nodes B, C, D, E.
+  - Node B is connected to nodes A, C, D, E.
+  - Node C is connected to nodes A, B, D, E.
+  - Node D is connected to nodes A, B, C, E.
+  - Node E is connected to nodes A, B, C, D.
+
+Step 3: Apply Marginal Independencies
+- No edges removed in this step.
+
+Step 4: Apply Conditional Independencies
+- Because nodes A and C are independent given node B, there is no edge between nodes A and C.
+- Because nodes B and E are independent given node A, there is no edge between nodes B and E.
+- Because nodes C and E are independent given node A, there is no edge between nodes C and E.
+- Because nodes D and E are independent given node A, there is no edge between nodes D and E.
+
+Step 5: Compile the Causal Undirected Skeleton
+In this graph:
+  - Node A is connected to nodes B, D, E.
+  - Node B is connected to nodes A, C, D.
+  - Node C is connected to nodes B, D.
+  - Node D is connected to nodes A, B, C.
+  - Node E is connected to node A.
+
+========================================
+
+Model output:
+Task Description: Given the provided premise, apply the PC (Peter-Clark) algorithm only by following instructions given below. Do not provide any additional information or assumptions.
+Premise: Suppose there is a closed system of 5 variables, A, B, C, D and E. All the statistical relations among these 5 variables are as follows: A correlates with B. A correlates with C. A correlates with D. A correlates with E. B correlates with C. B correlates with D. B correlates with E. C correlates with D. C correlates with E. D correlates with E. However, A and C are independent given B. A and C are independent given B and E. B and E are independent given A. B and E are independent given A and C. B and E are independent given A, C and D. B and E are independent given A and D. C and E are independent given A. C and E are independent given A and B. C and E are independent given A, B and D. C and E are independent given A and D. C and E are independent given B. D and E are independent given A. D and E are independent given A and B. D and E are independent given A, B and C. D and E are independent given A and C.
+
+
+Step 1 - Read the Data:
+- Extracted variables: A, B, C, D, E
+- Correlations: (A, B), (A, C), (A, D), (A, E), (B, C), (B, D), (B, E), (C, D), (C, E), (D, E)
+- Independencies:
+  - A and C are independent given B
+  - A and C are independent given B and E
+  - B and E are independent given A
+  - B and E are independent given A and C
+  - B and E are independent given A, C and D
+  - B and E are independent given A and D
+  - C and E are independent given A
+  - C and E are independent given A and B
+  - C and E are independent given A, B and D
+  - C and E are independent given A and D
+  - C and E are independent given B
+  - D and E are independent given A
+  - D and E are independent given A and B
+  - D and E are independent given A, B and C
+  - D and E are independent given A and C
+
+
+Step 2 - Initialize the Graph:
+- Created edges between all correlated variable pairs.
+- Initial edges: {(A, B), (A, C), (A, D), (A, E), (B, C), (B, D), (B, E), (C, D), (C, E), (D, E)}
+- Connections for each node:
+  - A: {B, C, D, E}
+  - B: {A, C, D, E}
+  - C: {A, B, D, E}
+  - D: {A, B, C, E}
+  - E: {A, B, C, D}
+
+
+Step 3 - Apply Independencies:
+- Because A and C are independent given B, remove the edge between A and C.
+- Because A and C are independent given B and E, there is no edge between A and C.
+- Because B and E are independent given A, remove the edge between B and E.
+- Because B and E are independent given A and C, there is no edge between B and E.
+- Because B and E are independent given A, C and D, there is no edge between B and E.
+- Because B and E are independent given A and D, there is no edge between B and E.
+- Because C and E are independent given A, remove the edge between C and E.
+- Because C and E are independent given A and B, there is no edge between C and E.
+- Because C and E are independent given A, B and D, there is no edge between C and E.
+- Because C and E are independent given A and D, there is no edge between C and E.
+- Because C and E are independent given B, there is no edge between C and E.
+- Because D and E are independent given A, remove the edge between D and E.
+- Because D and E are independent given A and B, there is no edge between D and E.
+- Because D and E are independent given A, B and C, there is no edge between D and E.
+- Because D and E are independent given A and C, there is no edge between D and E.
+
+
+Step 4 - Compile the Causal Undirected Skeleton:
+In this graph:
+- Node A is connected to nodes B, D, E.
+- Node B is connected to nodes A, C, D.
+- Node C is connected to nodes B, D.
+- Node D is connected to nodes A, B, C.
+- Node E has no connections.
+
+Mismatch found:
+Expected edges: {('B', 'C'), ('C', 'D'), ('A', 'C'), ('B', 'E'), ('D', 'E'), ('A', 'B'), ('A', 'E'), ('B', 'D'), ('A', 'D'), ('C', 'E')}
+Model edges: {('B', 'C'), ('C', 'D'), ('A', 'B'), ('A', 'E'), ('B', 'D'), ('A', 'D')}
+Missing in model: {('A', 'C'), ('B', 'E'), ('D', 'E'), ('C', 'E')}
+Extra in model: set()
+
+========================================
+
+Premise:
+Premise: Suppose there is a closed system of 5 variables, A, B, C, D and E. All the statistical relations among these 5 variables are as follows: A correlates with B. A correlates with C. A correlates with D. B correlates with C. B correlates with D. C correlates with D. However, A is independent of E. A and E are independent given B. A and E are independent given B and C. A and E are independent given B, C and D. A and E are independent given B and D. A and E are independent given C. A and E are independent given C and D. A and E are independent given D. B and D are independent given A. B and D are independent given A and C. B and D are independent given A, C and E. B and D are independent given A and E. B is independent of E. B and E are independent given A. B and E are independent given A and C. B and E are independent given A, C and D. B and E are independent given A and D. B and E are independent given C. B and E are independent given C and D. B and E are independent given D. C and D are independent given A. C and D are independent given A and B. C and D are independent given A, B and E. C and D are independent given A and E. C is independent of E. C and E are independent given A. C and E are independent given A and B. C and E are independent given A, B and D. C and E are independent given A and D. C and E are independent given B. C and E are independent given B and D. C and E are independent given D. D is independent of E. D and E are independent given A. D and E are independent given A and B. D and E are independent given A, B and C. D and E are independent given A and C. D and E are independent given B. D and E are independent given B and C. D and E are independent given C.
+
+========================================
+
+========================================
+
+Correct answer:
+Step 1: Read the Data
+- Extracted nodes: A, B, C, D, E
+- Correlations:
+  - Node A is correlated with nodes B, C, D.
+  - Node B is correlated with nodes A, C, D.
+  - Node C is correlated with nodes A, B, D.
+  - Node D is correlated with nodes A, B, C.
+- Marginal Independencies:
+  - Node A is independent of node E.
+  - Node B is independent of node E.
+  - Node C is independent of node E.
+  - Node D is independent of node E.
+- Conditional Independencies:
+  - Nodes A and E are independent given node B
+  - Nodes A and E are independent given nodes B, C
+  - Nodes A and E are independent given nodes B, C, D
+  - Nodes A and E are independent given nodes B, D
+  - Nodes A and E are independent given node C
+  - Nodes A and E are independent given nodes C, D
+  - Nodes A and E are independent given node D
+  - Nodes B and D are independent given node A
+  - Nodes B and D are independent given nodes A, C
+  - Nodes B and D are independent given nodes A, C, E
+  - Nodes B and D are independent given nodes A, E
+  - Nodes B and E are independent given node A
+  - Nodes B and E are independent given nodes A, C
+  - Nodes B and E are independent given nodes A, C, D
+  - Nodes B and E are independent given nodes A, D
+  - Nodes B and E are independent given node C
+  - Nodes B and E are independent given nodes C, D
+  - Nodes B and E are independent given node D
+  - Nodes C and D are independent given node A
+  - Nodes C and D are independent given nodes A, B
+  - Nodes C and D are independent given nodes A, B, E
+  - Nodes C and D are independent given nodes A, E
+  - Nodes C and E are independent given node A
+  - Nodes C and E are independent given nodes A, B
+  - Nodes C and E are independent given nodes A, B, D
+  - Nodes C and E are independent given nodes A, D
+  - Nodes C and E are independent given node B
+  - Nodes C and E are independent given nodes B, D
+  - Nodes C and E are independent given node D
+  - Nodes D and E are independent given node A
+  - Nodes D and E are independent given nodes A, B
+  - Nodes D and E are independent given nodes A, B, C
+  - Nodes D and E are independent given nodes A, C
+  - Nodes D and E are independent given node B
+  - Nodes D and E are independent given nodes B, C
+  - Nodes D and E are independent given node C
+
+Step 2: Initialize the Graph
+Created edges between all correlated variable pairs. In this graph:
+  - Node A is connected to nodes B, C, D.
+  - Node B is connected to nodes A, C, D.
+  - Node C is connected to nodes A, B, D.
+  - Node D is connected to nodes A, B, C.
+  - Node E has no connections.
+
+Step 3: Apply Marginal Independencies
+- No edges removed in this step.
+
+Step 4: Apply Conditional Independencies
+- Because nodes B and D are independent given node A, there is no edge between nodes B and D.
+- Because nodes C and D are independent given node A, there is no edge between nodes C and D.
+
+Step 5: Compile the Causal Undirected Skeleton
+In this graph:
+  - Node A is connected to nodes B, C, D.
+  - Node B is connected to nodes A, C.
+  - Node C is connected to nodes A, B.
+  - Node D is connected to node A.
+  - Node E has no connections.
+
+========================================
+
+Model output:
+Task Description: Given the provided premise, apply the PC (Peter-Clark) algorithm only by following instructions given below. Do not provide any additional information or assumptions.
+Premise: Suppose there is a closed system of 5 variables, A, B, C, D and E. All the statistical relations among these 5 variables are as follows: A correlates with B. A correlates with C. A correlates with D. B correlates with C. B correlates with D. C correlates with D. However, A is independent of E. A and E are independent given B. A and E are independent given B and C. A and E are independent given B, C and D. A and E are independent given B and D. A and E are independent given C. A and E are independent given C and D. A and E are independent given D. B and D are independent given A. B and D are independent given A and C. B and D are independent given A, C and E. B and D are independent given A and E. B is independent of E. B and E are independent given A. B and E are independent given A and C. B and E are independent given A, C and D. B and E are independent given A and D. B and E are independent given C. B and E are independent given C and D. B and E are independent given D. C and D are independent given A. C and D are independent given A and B. C and D are independent given A, B and E. C and D are independent given A and E. C is independent of E. C and E are independent given A. C and E are independent given A and B. C and E are independent given A, B and D. C and E are independent given A and D. C and E are independent given B. C and E are independent given B and D. C and E are independent given D. D is independent of E. D and E are independent given A. D and E are independent given A and B. D and E are independent given A, B and C. D and E are independent given A and C. D and E are independent given B. D and E are independent given B and C. D and E are independent given C.
+
+
+Step 1 - Read the Data:
+- Extracted variables: A, B, C, D, E
+- Correlations: (A, B), (A, C), (A, D), (B, C), (B, D), (C, D)
+- Independencies:
+  - A is independent of E
+  - A and E are independent given B
+  - A and E are independent given B and C
+  - A and E are independent given B, C and D
+  - A and E are independent given B and D
+  - A and E are independent given C
+  - A and E are independent given C and D
+  - A and E are independent given D
+  - B and D are independent given A
+  - B and D are independent given A and C
+  - B and D are independent given A, C and E
+  - B and D are independent given A and E
+  - B is independent of E
+  - B and E are independent given A
+  - B and E are independent given A and C
+  - B and E are independent given A, C and D
+  - B and E are independent given A and D
+  - B and E are independent given C
+  - B and E are independent given C and D
+  - B and E are independent given D
+  - C and D are independent given A
+  - C and D are independent given A and B
+  - C and D are independent given A, B and E
+  - C and D are independent given A and E
+  - C is independent of E
+  - C and E are independent given A
+  - C and E are independent given A and B
+  - C and E are independent given A, B and D
+  - C and E are independent given A and D
+  - C and E are independent given B
+  - C and E are independent given B and D
+  - C and E are independent given D
+  - D is independent of E
+  - D and E are independent given A
+  - D and E are independent given A and B
+  - D and E are independent given A, B and C
+  - D and E are independent given A and C
+  - D and E are independent given B
+  - D and E are independent given B and C
+  - D and E are independent given C
+
+
+Step 2 - Initialize the Graph:
+- Created edges between all correlated variable pairs.
+- Initial edges: {(A, B), (A, C), (A, D), (B, C), (B, D), (C, D)}
+
+- Connections for each node:
+  - A: {B, C, D}
+  - B: {A, C, D}
+  - C: {A, B, D}
+  - D: {A, B, C}
+  - E: {}
+
+
+Step 3 - Apply Independencies:
+- Because A is independent of E, there is no edge between A and E.
+- Because B is independent of E, there is no edge between B and E.
+- Because C is independent of E, there is no edge between C and E.
+- Because D is independent of E, there is no edge between D and E.
+- Because B and D are independent given A, there is no edge between B and D.
+- Because C and D are independent given A, there is no edge between C and D.
+- Because B and D are independent given A and C, there is no edge between B and D.
+- Because C and D are independent given A and B, there is no edge between C and D.
+- Because A and E are independent given B, there is no edge between A and E.
+- Because A and E are independent given B and C, there is no edge between A and E.
+- Because A and E are independent given B, C and D, there is no edge between A and E.
+- Because A and E are independent given B and D, there is no edge between A and E.
+- Because A and E are independent given C, there is no edge between A and E.
+- Because A and E are independent given C and D, there is no edge between A and E.
+- Because A and E are independent given D, there is no edge between A and E.
+- Because B and E are independent given A, there is no edge between B and E.
+- Because B and E are independent given A and C, there is no edge between B and E.
+- Because B and E are independent given A, C and D, there is no edge between B and E.
+- Because B and E are independent given A and D, there is no edge between B and E.
+- Because B and E are independent given C, there is no edge between B and E.
+- Because B and E are independent given C and D, there is no edge between B and E.
+- Because B and E are independent given D, there is no edge between B and E.
+- Because C and E are independent given A, there is no edge between C and E.
+- Because C and E are independent given A and B, there is no edge between C and E.
+- Because C and E are independent given A, B and D, there is no edge between C and E.
+- Because C and E are independent given A and D, there is no edge between C and E.
+- Because C and E are independent given B, there is no edge between C and E.
+- Because C and E are independent given B and D, there is no edge between C and E.
+- Because C and E are independent given D, there is no edge between C and E.
+- Because D and E are independent given A, there is no edge between D and E.
+- Because D and E are independent given A and B, there is no edge between D and E.
+- Because D and E are independent given A, B and C, there is no edge between D and E.
+- Because D and E are independent given A and C, there is no edge between D and E.
+- Because D and E are independent given B, there is no edge between D and E.
+- Because D and E are independent given B and C, there is no edge between D and E.
+- Because D and E are independent given C, there is no edge between D and E.
+
+
+Step 4 - Compile the Causal Undirected Skeleton:
+In this graph:
+  - Node A is connected to nodes B, C, D.
+  - Node B is connected to nodes A, C.
+  - Node C is connected to nodes A, B.
+  - Node D is connected to nodes A, B, C.
+  - Node E has no connections.
+
+The model's predicted edges match the expected edges!
+
+Experiment finished. Results:
+{'exact_match_ratio': 0.5, 'total_exact_matches': 1, 'total_prompts': 2}
+Total failed experiments: 0 out of 2
+Running Experiments: 100%|██████████| 2/2 [01:59<00:00, 59.91s/it]
+
+Process finished with exit code 0

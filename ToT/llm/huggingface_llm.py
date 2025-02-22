@@ -1,14 +1,9 @@
-import os
-from functools import lru_cache
 from typing import Optional
 
-import torch
-from dotenv import load_dotenv
-from huggingface_hub import login
-from transformers import Pipeline, pipeline
+from transformers import Pipeline
 
 from ToT.llm.base import BaseLLM
-from ToT.utils import config, log_time
+from ToT.utils import config
 
 
 class HuggingFaceLLM(BaseLLM):

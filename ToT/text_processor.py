@@ -4,20 +4,35 @@ from ToT.utils import config
 
 
 def extract_edges(answer: str) -> set[tuple]:
-    markers = config.get("markers")
     answer = answer.replace("\r\n", "\n").replace("\r", "\n")
 
-    start_index = None
-    for marker in markers:
-        match = re.search(re.escape(marker), answer, flags=re.IGNORECASE)
-        if match:
-            start_index = match.end()
+    markers = config.get("markers")
+    if not markers:
+        raise ValueError("No markers provided in config.")
+
+    # Escape markers for regex and join them with OR.
+    escaped_markers = [re.escape(marker) for marker in markers]
+    markers_pattern = r"|".join(escaped_markers)
+
+    # Build a regex that looks for:
+    #   "Step 4:" or "Step 5:" followed by any text (non-greedy)
+    pattern = r"Step\s+(4|5)(?::|(?:\s*-))\s*.*?(?:" + markers_pattern + r")\s*\n"
+
+    marker_match = re.search(pattern, answer, flags=re.IGNORECASE | re.DOTALL)
+    if not marker_match:
+        raise ValueError(
+            "No valid marker with 'Step 4:' or 'Step 5:' and one of the config markers found in the answer. Failed to extract edges.")
+    start_index = marker_match.end()
+
+    lines = answer[start_index:].splitlines()
+    adjacency_lines = []
+    for line in lines:
+        stripped_line = line.strip()
+        if stripped_line.startswith("- Node"):
+            adjacency_lines.append(stripped_line)
+        elif adjacency_lines:
             break
 
-    if start_index is None:
-        raise ValueError("None of the expected graph markers were found in the answer. Failed to extract edges.")
-
-    adjacency_section = answer[start_index:].splitlines()
     edges = set()
 
     # Regex for lines:
@@ -37,7 +52,7 @@ def extract_edges(answer: str) -> set[tuple]:
         re.IGNORECASE
     )
 
-    for line in adjacency_section:
+    for line in adjacency_lines:
         line = line.strip()
 
         # Skip line that does not start with "- Node"

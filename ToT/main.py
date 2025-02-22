@@ -33,6 +33,13 @@ def run_single_experiment(df: pd.DataFrame, agent: CausalSkeletonToT) -> dict[st
     if not final_output:
         raise ValueError("No output generated.")
 
+    print("\n========================================")
+    print(f"\nPremise:\n{premise}")
+    print("\n========================================")
+    print("\n========================================")
+    print(f"\nCorrect answer:\n{expected_answer}")
+    print("\n========================================")
+
     print(f"\nModel output:\n{final_output}")
     generated_edges = extract_edges(final_output)
 
