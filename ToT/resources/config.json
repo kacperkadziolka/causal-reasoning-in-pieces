@@ -9,7 +9,7 @@
     "threshold": 7,
     "log_directory": "logging",
     "max_tokens": 1024,
-    "temperature": 1,
+    "temperature": 0.9,
     "markers": [
         "In this graph:",
         "Causal Undirected Skeleton",
