@@ -1,0 +1,33 @@
+step_3_template: |
+  Given the following chain-of-thought:
+  {previous_state}
+  
+  And the following candidate step:
+  {recent_step}
+  
+  Please evaluate the candidate step against these specific criteria:
+  1. EDGE REMOVAL CORRECTNESS (0-4 points)
+  - Each edge removal must be justified by a valid independence statement
+  - The conditioning set must be adjacent to both variables
+  - All required edge removals must be identified
+  - No incorrect edge removals
+
+  2. EDGE RETENTION CORRECTNESS (0-3 points) 
+  - Edges that should remain must be explicitly justified
+  - No edges should be incorrectly retained
+  - Reasoning must follow the PC algorithm rules
+
+  3. TECHNICAL ACCURACY (0-3 points)
+  - Correct application of independence statements
+  - Proper handling of conditioning sets
+  - Clear documentation of each decision
+  
+  Constraints to verify:
+  {instruction_constraints}
+  
+  IMPORTANT:
+  - Sum the points from all criteria (max 10)
+  - Your response MUST be exactly one integer between 0 and 10
+  - A score of 10 requires PERFECT adherence to all criteria
+  - Deduct points for ANY deviation from correct application
+  - Do NOT include any explanation

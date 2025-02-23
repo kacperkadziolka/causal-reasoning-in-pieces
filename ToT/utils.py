@@ -32,6 +32,7 @@ def load_prompts(filepath: str = "resources/prompts.yaml") -> dict[str, str]:
 
 
 prompts = load_prompts()
+evaluate_prompts = load_prompts("resources/evaluate_prompts.yaml")
 config = load_config()
 
 log_directory = config.get("log_directory")

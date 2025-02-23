@@ -3,7 +3,7 @@ import os
 from typing import Optional
 
 from ToT.llm.llm_factory import get_llm_model
-from ToT.utils import prompts, log_directory
+from ToT.utils import prompts, log_directory, evaluate_prompts
 
 logging.basicConfig(
     filename=os.path.join(log_directory, "ToT.log"),
@@ -40,12 +40,16 @@ def generate_thoughts(state: str, next_step_instruction: str, next_step_example:
     return responses
 
 
-def evaluate_state(previous_state: str, recent_step: str, instructions_constraints: str) -> int:
+def evaluate_state(previous_state: str, recent_step: str, instructions_constraints: str, step_number: int) -> int:
     """
     Evaluates the given state by asking the model to score it on how well it satisfies the constraints.
     Returns a numeric score.
     """
-    evaluate_prompt_template: str = prompts["evaluate_prompt_template"]
+    if step_number == 3:
+        evaluate_prompt_template: str = evaluate_prompts["step_3_template"]
+    else:
+        evaluate_prompt_template: str = prompts["evaluate_prompt_template"]
+
     evaluate_prompt: str = evaluate_prompt_template.format(
         previous_state=previous_state,
         recent_step=recent_step,
@@ -116,7 +120,8 @@ def search(initial_state: str, current_step: int, max_steps: int, threshold: int
         score: int = evaluate_state(
             previous_state=initial_state,
             recent_step=candidate,
-            instructions_constraints=next_step_instruction
+            instructions_constraints=next_step_instruction,
+            step_number=current_step
         )
         evaluated_candidates.append((new_state, score))
 

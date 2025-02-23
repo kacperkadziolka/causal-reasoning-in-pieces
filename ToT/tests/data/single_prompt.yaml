@@ -1,4 +1,4 @@
-- description: Step 4 (Apply independencies)
+- description: Step 3 (Apply independencies)
   user_prompt: |
     Given the following chain-of-thought:
     Task Description: Given the provided premise, apply the PC (Peter-Clark)
