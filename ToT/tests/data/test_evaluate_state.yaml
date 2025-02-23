@@ -411,3 +411,132 @@
     Instructions:
       - Rate the candidate graph on a scale from 0 (poor) to 10 (excellent) based solely on how accurately it reflects the intended causal undirected skeleton.
       - IMPORTANT: Respond with exactly one integer (0–10) and nothing else.
+
+- description: Step 3 (Apply independencies) - improved prompt that seem to improve performance...
+  user_prompt: |
+    Given the following chain-of-thought:
+    Task Description: Given the provided premise, apply the PC (Peter-Clark)
+     algorithm only by following instructions given below. Do not provide 
+    any additional information or assumptions.
+    Premise: Suppose there is a closed system of 5 variables, A, B, C, D and
+     E. All the statistical relations among these 5 variables are as 
+    follows: A correlates with B. A correlates with C. A correlates with D. A
+     correlates with E. B correlates with C. B correlates with D. B 
+    correlates with E. C correlates with D. C correlates with E. D 
+    correlates with E. However, A and C are independent given B. A and C are
+     independent given B and E. B and D are independent given A and C. B and
+     D are independent given A, C and E. B and E are independent given A. B 
+    and E are independent given A and C. B and E are independent given A, C 
+    and D. B and E are independent given A and D. C and E are independent 
+    given A. C and E are independent given A and B. C and E are independent 
+    given A, B and D. C and E are independent given A and D. C and E are 
+    independent given B. D and E are independent given A. D and E are 
+    independent given A and B. D and E are independent given A, B and C. D 
+    and E are independent given A and C.
+    
+    
+    Step 1 - Read the Data:
+    For the given premise, the information extracted for the current step is
+     as follows:
+    
+    - Extracted variables: A, B, C, D, E
+    - Correlations: (A, B), (A, C), (A, D), (A, E), (B, C), (B, D), (B, E), 
+    (C, D), (C, E), (D, E)
+    - Independencies:
+      - (A, C) are independent given B
+      - (A, C) are independent given B and E
+      - (B, D) are independent given A and C
+      - (B, D) are independent given A, C and E
+      - (B, E) are independent given A
+      - (B, E) are independent given A and C
+      - (B, E) are independent given A, C and D
+      - (B, E) are independent given A and D
+      - (C, E) are independent given A
+      - (C, E) are independent given A and B
+      - (C, E) are independent given A, B and D
+      - (C, E) are independent given A and D
+      - (C, E) are independent given B
+      - (D, E) are independent given A
+      - (D, E) are independent given A and B
+      - (D, E) are independent given A, B and C
+      - (D, E) are independent given A and C
+    
+    
+    Step 2 - Initialize the Graph:
+    For the given premise, the initialization of the graph is as follows:
+    
+    - Created edges between all correlated node pairs.
+    - Initial edges: {(A, B), (A, C), (A, D), (A, E), (B, C), (B, D), (B, 
+    E), (C, D), (C, E), (D, E)}
+    
+    List of connections for each node:
+    - A: B, C, D, E
+    - B: A, C, D, E
+    - C: A, B, D, E
+    - D: A, B, C, E
+    - E: A, B, C, D
+    
+    
+    And the following candidate step:
+    Apply Independencies:
+    - Because A and C are independent given B, remove the edge between A and C.
+    - Because A and C are independent given B and E, this does not lead to any additional removals since the edge between A and C is already removed.
+    - Because B and D are independent given A and C, remove the edge between B and D.
+    - Because B and D are independent given A, C and E, this does not lead to any additional removals since the edge between B and D is already removed.
+    - Because B and E are independent given A, remove the edge between B and E.
+    - Because B and E are independent given A and C, this does not lead to any additional removals since the edge between B and E is already removed.
+    - Because B and E are independent given A, C and D, this does not lead to any additional removals since the edge between B and E is already removed.
+    - Because B and E are independent given A and D, this does not lead to any additional removals since the edge between B and E is already removed.
+    - Because C and E are independent given A, remove the edge between C and E.
+    - Because C and E are independent given A and B, this does not lead to any additional removals since the edge between C and E is already removed.
+    - Because C and E are independent given A, B and D, this does not lead to any additional removals since the edge between C and E is already removed.
+    - Because C and E are independent given A and D, this does not lead to any additional removals since the edge between C and E is already removed.
+    - Because C and E are independent given B, this does not lead to any additional removals since the edge between C and E is already removed.
+    - Because D and E are independent given A, remove the edge between D and E.
+    - Because D and E are independent given A and B, this does not lead to any additional removals since the edge between D and E is already removed.
+    - Because D and E are independent given A, B and C, this does not lead to any additional removals since the edge between D and E is already removed.
+    - Because D and E are independent given A and C, this does not lead to any additional removals since the edge between D and E is already removed.
+    
+    Updated edges after applying independencies:
+    - Removed edges: (A, C), (B, D), (B, E), (C, E), (D, E)
+    - Remaining edges: (A, B), (A, D), (A, E), (B, C), (C, D) 
+    
+    List of connections for each node after applying independencies:
+    - A: B, D, E
+    - B: A, C
+    - C: B, D
+    - D: A, C
+    - E: A
+    
+    
+    Please evaluate the candidate step against these specific criteria:
+    
+    1. EDGE REMOVAL CORRECTNESS (0-4 points)
+    - Each edge removal must be justified by a valid independence statement
+    - The conditioning set must be adjacent to both variables
+    - All required edge removals must be identified
+    - No incorrect edge removals
+  
+    2. EDGE RETENTION CORRECTNESS (0-3 points) 
+    - Edges that should remain must be explicitly justified
+    - No edges should be incorrectly retained
+    - Reasoning must follow the PC algorithm rules
+  
+    3. TECHNICAL ACCURACY (0-3 points)
+    - Correct application of independence statements
+    - Proper handling of conditioning sets
+    - Clear documentation of each decision
+    
+    
+    Constraints to verify:
+    Apply Independencies
+    - Remove edges based on independencies.
+    - Specify which independencies led to each removal.
+    
+    
+    IMPORTANT:
+    - Sum the points from all criteria (max 10)
+    - Your response MUST be exactly one integer between 0 and 10
+    - A score of 10 requires PERFECT adherence to all criteria
+    - Deduct points for ANY deviation from correct application
+    - Do NOT include any explanation

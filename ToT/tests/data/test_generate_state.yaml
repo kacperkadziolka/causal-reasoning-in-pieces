@@ -1,4 +1,4 @@
-- description: Step 4 (Apply independencies) - prompt that with llama was wrongly generated
+- description: Step 4 (Apply independencies) - prompt that approx 50% chances is wrongly generated
   user_prompt: |
     Current state:
     Task Description: Given the provided premise, apply the PC (Peter-Clark) algorithm only by following instructions given below. Do not provide any additional information or assumptions.
@@ -55,6 +55,79 @@
     - Because B and D are independent given A, there is no edge between B and D.
     - Because C and D are independent given A, there is no edge between C and D.
     
+    
+    IMPORTANT:
+    - Your response MUST ONLY address the above step.
+    - DO NOT generate any content or steps beyond what is requested for this step.
+
+- description: Step 4 (Apply independencies) - refactored instructions
+  user_prompt: |
+    Current state:
+    Task Description: Given the provided premise, apply the PC (Peter-Clark) algorithm only by following instructions given below. Do not provide any additional information or assumptions.
+    Premise: Suppose there is a closed system of 5 variables, A, B, C, D and E. All the statistical relations among these 5 variables are as follows: A correlates with B. A correlates with C. A correlates with D. A correlates with E. B correlates with C. B correlates with D. B correlates with E. C correlates with D. C correlates with E. D correlates with E. However, A and C are independent given B. A and C are independent given B and E. B and D are independent given A and C. B and D are independent given A, C and E. B and E are independent given A. B and E are independent given A and C. B and E are independent given A, C and D. B and E are independent given A and D. C and E are independent given A. C and E are independent given A and B. C and E are independent given A, B and D. C and E are independent given A and D. C and E are independent given B. D and E are independent given A. D and E are independent given A and B. D and E are independent given A, B and C. D and E are independent given A and C.
+    
+    Step 1 - Read the Data:
+    For the given premise, the information extracted for the current step is as follows:
+    
+    - Extracted variables: A, B, C, D, E
+    - Correlations: (A, B), (A, C), (A, D), (A, E), (B, C), (B, D), (B, E), (C, D), (C, E), (D, E)
+    - Independencies:
+      - (A, C) are independent given B
+      - (A, C) are independent given B and E
+      - (B, D) are independent given A and C
+      - (B, D) are independent given A, C and E
+      - (B, E) are independent given A
+      - (B, E) are independent given A and C
+      - (B, E) are independent given A, C and D
+      - (B, E) are independent given A and D
+      - (C, E) are independent given A
+      - (C, E) are independent given A and B
+      - (C, E) are independent given A, B and D
+      - (C, E) are independent given A and D
+      - (C, E) are independent given B
+      - (D, E) are independent given A
+      - (D, E) are independent given A and B
+      - (D, E) are independent given A, B and C
+      - (D, E) are independent given A and C
+    
+    Step 2 - Initialize the Graph:
+    For the given premise, the initialization of the graph is as follows:
+    
+    - Created edges between all correlated node pairs.
+    - Initial edges: {(A, B), (A, C), (A, D), (A, E), (B, C), (B, D), (B, E), (C, D), (C, E), (D, E)}
+    
+    List of connections for each node:
+    - A: B, C, D, E
+    - B: A, C, D, E
+    - C: A, B, D, E
+    - D: A, B, C, E
+    - E: A, B, C, D
+    
+    Next step instruction (focus exclusively on this step):
+    Apply Independencies
+    Follow these strict rules:
+    1. If variables X and Y are independent given a set of variables S:
+       - AND there is currently an edge between X and Y
+       - AND all variables in S are either adjacent to X or adjacent to Y
+       - THEN remove the edge between X and Y
+    2. Apply the rule above for the smallest conditioning sets first
+    3. Once an edge is removed, it cannot be added back
+    4. Direct correlations alone do not override conditional independencies
+    5. For each edge removal, explicitly state:
+       - Which independence statement was used
+       - Why the conditioning set satisfies the adjacency requirement
+       - Why the edge should be removed
+    Example:
+    Given: A and B are independent given C, and C is adjacent to both A and B
+    Action: Remove edge between A and B because:
+    - A and B are independent given C
+    - C is adjacent to both A and B
+    - Therefore the edge (A,B) must be removed
+    
+    Step example (for guidance, only for this step):
+    Example for Step 3 – Apply Independencies:
+    - Because B and D are independent given A, there is no edge between B and D.
+    - Because C and D are independent given A, there is no edge between C and D.
     
     IMPORTANT:
     - Your response MUST ONLY address the above step.
