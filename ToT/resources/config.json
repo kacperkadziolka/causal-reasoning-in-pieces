@@ -1,4 +1,5 @@
 {
+    "run_id": "run-test",
     "llm_backend": "openai",
     "openai_model_name": "gpt-4o-mini",
     "hf_model_name": "meta-llama/Llama-3.3-70B-Instruct",

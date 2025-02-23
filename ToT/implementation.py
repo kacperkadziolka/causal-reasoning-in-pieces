@@ -3,10 +3,11 @@ import os
 from typing import Optional
 
 from ToT.llm.llm_factory import get_llm_model
-from ToT.utils import prompts, log_directory, evaluate_prompts
+from ToT.utils import prompts, log_directory, evaluate_prompts, config
 
+run_id: str = config.get("run_id", "default_run")
 logging.basicConfig(
-    filename=os.path.join(log_directory, "ToT.log"),
+    filename=os.path.join(log_directory, f"ToT-{run_id}.log"),
     filemode="w",
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
