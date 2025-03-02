@@ -22,9 +22,9 @@ def compare_edges(expected_edges: set, answer_edges: set) -> dict:
         print(f"Extra in model: {answer_edges - expected_edges}")
 
     # Calculate detailed metrics
-    true_positive = len(expected_edges & answer_edges)  # Correctly predicted edges
-    false_positive = len(answer_edges - expected_edges)  # Extra edges in prediction
-    false_negative = len(expected_edges - answer_edges)  # Missing edges in prediction
+    true_positive = len(expected_edges & answer_edges)
+    false_positive = len(answer_edges - expected_edges)
+    false_negative = len(expected_edges - answer_edges)
 
     return {
         "true_positive": true_positive,
@@ -33,6 +33,8 @@ def compare_edges(expected_edges: set, answer_edges: set) -> dict:
         "expected_count": len(expected_edges),
         "predicted_count": len(answer_edges),
         "exact_match": exact_match,
+        "missing_edges": list(expected_edges - answer_edges),
+        "extra_edges": list(answer_edges - expected_edges)
     }
 
 
@@ -78,34 +80,34 @@ def extract_edges_incident_format(answer: str) -> set:
         answer = answer.replace("\r\n", "\n").replace("\r", "\n")
 
         # Locate Step 5
-        # step_5_pattern = r"Step 5: Compile the Causal Undirected Skeleton"
-        # step_5_match = re.search(step_5_pattern, answer, flags=re.IGNORECASE)
-        # if not step_5_match:
-        #     raise ValueError("Step 5 section not found in the answer.")
+        step_5_pattern = r"Step 5: Compile the Causal Undirected Skeleton"
+        step_5_match = re.search(step_5_pattern, answer, flags=re.IGNORECASE)
+        if not step_5_match:
+            raise ValueError("Step 5 section not found in the answer.")
 
         """
         Temporary solution to run the requests without system prompt.
         """
-        step_5_pattern = r"Computed Causal Undirected Skeleton"
-        step_5_match = re.search(step_5_pattern, answer, flags=re.IGNORECASE)
-        if not step_5_match:
-            raise ValueError("'Computed Causal Undirected Skeleton' section not found in the answer.")
+        # step_5_pattern = r"Computed Causal Undirected Skeleton"
+        # step_5_match = re.search(step_5_pattern, answer, flags=re.IGNORECASE)
+        # if not step_5_match:
+        #     raise ValueError("'Computed Causal Undirected Skeleton' section not found in the answer.")
 
         # Slice the answer from right after Step 5
-        adjacency_section = answer[step_5_match.end():].splitlines()
+        # adjacency_section = answer[step_5_match.end():].splitlines()
 
         """
         Below code works well with the few-shot example, where the answer are more consistent with
         requested format. In zero-shot settings, model often fails to includes the "In this graph:" 
         line in the output.
         """
-        # # Find the start of the adjacency list
-        # adjacency_start = answer.find("In this graph:", step_5_match.end())
-        # if adjacency_start == -1:
-        #     raise ValueError("Adjacency list section not found in Step 5.")
-        #
-        # # Split lines from the adjacency list
-        # adjacency_section = answer[adjacency_start:].splitlines()
+        # Find the start of the adjacency list
+        adjacency_start = answer.find("In this graph:", step_5_match.end())
+        if adjacency_start == -1:
+            raise ValueError("Adjacency list section not found in Step 5.")
+
+        # Split lines from the adjacency list
+        adjacency_section = answer[adjacency_start:].splitlines()
 
         edges = set()
 

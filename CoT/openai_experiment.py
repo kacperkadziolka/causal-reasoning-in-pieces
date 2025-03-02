@@ -1,4 +1,6 @@
+import csv
 import os
+from datetime import datetime
 from typing import Optional
 
 import pandas as pd
@@ -47,10 +49,69 @@ In this graph:
 """
 
 
-def run_single_experiment(client: OpenAI, df: DataFrame) -> Optional[dict]:
+CSV_FIELDS = [
+    "input_prompt",
+    "expected_answer",
+    "model_answer",
+    "expected_edges",
+    "model_edges",
+    "missing_edges",
+    "extra_edges"
+]
+
+def get_log_filenames(temperature: int, do_sample: bool, num_experiments: int, no_variables: int) -> dict:
+    """
+    Generate log filenames based on configuration parameters.
+
+    :param temperature: Temperature value used for generation
+    :param do_sample: Whether sampling was used
+    :param num_experiments: Number of experiments
+    :param no_variables: Number of variables in the experiment
+    :return: Dictionary with filenames for successful and failed experiments
+    """
+    # Get current date and time
+    now = datetime.now()
+    date_str = now.strftime("%d-%b-%Y-%H%M")
+
+    # Build the base filename
+    base_filename = f"{date_str}-temp{temperature}"
+
+    if do_sample:
+        base_filename += "-dosample"
+
+    base_filename += f"-{num_experiments}exp-{no_variables}var"
+
+    return {
+        "successful": f"{base_filename}-successful.csv",
+        "failed": f"{base_filename}-failed.csv"
+    }
+
+
+def log_experiment_csv(entry: dict, file_path: str) -> None:
+    """
+    Log an experiment to the appropriate CSV file.
+
+    :param file_path: Path to the CSV log file.
+    """
+    entry["expected_edges"] = str(list(entry["expected_edges"]))
+    entry["model_edges"] = str(list(entry["model_edges"]))
+    entry["missing_edges"] = str(list(entry["missing_edges"]))
+    entry["extra_edges"] = str(list(entry["extra_edges"]))
+
+    file_exists = os.path.exists(file_path)
+
+    with open(file_path, "a", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
+        if not file_exists:
+            writer.writeheader()
+        writer.writerow(entry)
+
+
+def run_single_experiment(client: OpenAI, df: DataFrame, log_file_names: dict) -> Optional[dict]:
     """
     Run a single experiment to compare expected edges with the model's predicted edges.
 
+    :param log_file_names: Dictionary containing the filenames for successful and failed experiments.
     :param client: OpenAI API client.
     :param df: DataFrame containing the questions and expected answers.
     :return: A dictionary with the comparison result.
@@ -92,15 +153,32 @@ def run_single_experiment(client: OpenAI, df: DataFrame) -> Optional[dict]:
             ]
         )
 
+        model_response = completion.choices[0].message.content
+
         # Debug: Print the model's response
         print("\nModel Response:")
-        print(completion.choices[0].message.content)
+        print(model_response)
 
         # Extract edges from the model's answer
-        answer_edges = extract_edges_incident_format(completion.choices[0].message.content)
+        answer_edges = extract_edges_incident_format(model_response)
 
         # Compare the expected edges with the model's predicted edges
         result = compare_edges(expected_edges, answer_edges)
+
+        csv_log_entry = {
+            "input_prompt": prompt_content,
+            "expected_answer": expected_answer,
+            "model_answer": model_response,
+            "expected_edges": expected_edges,
+            "model_edges": answer_edges,
+            "missing_edges": result["missing_edges"],
+            "extra_edges": result["extra_edges"]
+        }
+
+        if result["exact_match"]:
+            log_experiment_csv(csv_log_entry, log_file_names["successful"])
+        else:
+            log_experiment_csv(csv_log_entry, log_file_names["failed"])
 
         return result
     except Exception as e:
@@ -108,10 +186,11 @@ def run_single_experiment(client: OpenAI, df: DataFrame) -> Optional[dict]:
         return None  # Skip the experiment if an error occurs
 
 
-def run_multiple_experiments(client: OpenAI, df: DataFrame, num_experiments: int) -> None:
+def run_multiple_experiments(client: OpenAI, df: DataFrame, num_experiments: int, log_file_names: dict) -> None:
     """
     Run multiple experiments and calculate aggregate metrics.
 
+    :param log_file_names: Dictionary containing the filenames for successful and failed experiments.
     :param client: OpenAI API client.
     :param df: DataFrame containing the questions and expected answers.
     :param num_experiments: Number of experiments to run.
@@ -120,7 +199,11 @@ def run_multiple_experiments(client: OpenAI, df: DataFrame, num_experiments: int
     failed_experiments = 0
 
     for _ in tqdm(range(num_experiments), desc="Running Experiments"):
-        result = run_single_experiment(client, df)
+        result = run_single_experiment(
+            client=client,
+            df=df,
+            log_file_names=log_file_names
+        )
         if result:
             results.append(result)
         else:
@@ -132,9 +215,26 @@ def run_multiple_experiments(client: OpenAI, df: DataFrame, num_experiments: int
         display_metrics(aggregated_metrics)
 
     print(f"\nTotal failed experiments: {failed_experiments} out of {num_experiments}")
+    print(f"\nTotal failed experiments: {failed_experiments} out of {num_experiments}")
+    print(f"Results logged to:")
+    print(f"  - Successful experiments: {log_file_names['successful']}")
+    print(f"  - Failed experiments: {log_file_names['failed']}")
 
 
 def main():
+    ### CONFIG ###
+    TEMPERATURE: int = 1
+    DO_SAMPLE: bool = False
+    NUM_EXPERIMENTS: int = 5
+    NO_VARIABLES: int = 5
+
+    log_files = get_log_filenames(
+        TEMPERATURE,
+        DO_SAMPLE,
+        NUM_EXPERIMENTS,
+        NO_VARIABLES
+    )
+
     # Retrieve the API key from the .env file
     load_dotenv()
     api_key = os.getenv('OPENAI_API_KEY')
@@ -144,7 +244,7 @@ def main():
 
     # Load the dataframe
     script_directory = os.path.dirname(os.path.abspath(__file__))
-    csv_file_path = os.path.join(script_directory, "data/v0.0.4/train.csv")
+    csv_file_path = os.path.join(script_directory, "data/v0.0.6/train.csv")
     df = pd.read_csv(csv_file_path)
 
     # Initialize the API client
@@ -153,10 +253,15 @@ def main():
     )
 
     # Run a single experiment
-    print(run_single_experiment(client, df))
+    # print(run_single_experiment(client, df))
 
     # Run multiple experiments
-    # run_multiple_experiments(client, df, num_experiments=50)
+    run_multiple_experiments(
+        client=client,
+        df=df,
+        num_experiments=NUM_EXPERIMENTS,
+        log_file_names=log_files
+    )
 
 
 if __name__ == "__main__":
