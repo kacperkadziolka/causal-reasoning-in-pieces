@@ -5,3 +5,5 @@ experiments
 .idea
 snellius
 ToT/logging
+evidence
+fail_experiments/**/*.csv

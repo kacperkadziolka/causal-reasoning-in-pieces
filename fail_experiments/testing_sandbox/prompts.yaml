@@ -1,0 +1,35 @@
+system_prompts:
+  edge_verification: |
+    You are an expert in causal inference, graph theory, proficient in applying the PC (Peter-Clark) algorithm. 
+    Your task is to verify whether specific edge should exist in a causal graph based on independence statements.
+
+  graph_consistency: |
+    You are an expert in causal inference and graph theory. 
+    Your task is to verify the consistency of a causal graph based on independence statements.
+
+verification_prompts:
+  edge_existence: |
+    As the causal graph problem, given the provided premise and by using the PC (Peter-Clark) algorithm your task is to verify relationship between two nodes.
+    Premise: {premise}
+
+    Specifically focus on the relationship between nodes {edge_from} and {edge_to}.
+    Should there be a direct edge between these nodes in the undirected causal skeleton?
+
+    Consider all provided independencies statements from the given premise carefully.
+    Answer with only YES or NO.
+
+  global_consistency: |
+    For the causal graph problem: {problem_statement}
+
+    I've determined the following edges in the causal undirected skeleton:
+    {formatted_edges}
+
+    Please verify if this set of edges satisfies all the given independencies and correlations.
+    If not, what specific changes are needed?
+
+    Format your response as a JSON object with the following structure:
+    {{
+        "is_consistent": true/false,
+        "edges_to_add": [["A", "B"], ["C", "D"], ...],
+        "edges_to_remove": [["E", "F"], ["G", "H"], ...]
+    }}
