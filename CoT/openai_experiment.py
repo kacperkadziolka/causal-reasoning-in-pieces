@@ -58,6 +58,17 @@ CSV_FIELDS = [
     "missing_edges",
     "extra_edges"
 ]
+LOGS_DIR = "logs"
+
+
+def ensure_logs_directory_exists():
+    """
+    Create the logs directory if it doesn't exist.
+    """
+    if not os.path.exists(LOGS_DIR):
+        os.makedirs(LOGS_DIR)
+        print(f"Created logs directory: {LOGS_DIR}")
+
 
 def get_log_filenames(temperature: int, do_sample: bool, num_experiments: int, no_variables: int) -> dict:
     """
@@ -69,6 +80,9 @@ def get_log_filenames(temperature: int, do_sample: bool, num_experiments: int, n
     :param no_variables: Number of variables in the experiment
     :return: Dictionary with filenames for successful and failed experiments
     """
+    # Ensure logs directory exists
+    ensure_logs_directory_exists()
+
     # Get current date and time
     now = datetime.now()
     date_str = now.strftime("%d-%b-%Y-%H%M")
@@ -82,8 +96,8 @@ def get_log_filenames(temperature: int, do_sample: bool, num_experiments: int, n
     base_filename += f"-{num_experiments}exp-{no_variables}var"
 
     return {
-        "successful": f"{base_filename}-successful.csv",
-        "failed": f"{base_filename}-failed.csv"
+        "successful": os.path.join(LOGS_DIR, f"{base_filename}-successful.csv"),
+        "failed": os.path.join(LOGS_DIR, f"{base_filename}-failed.csv")
     }
 
 
