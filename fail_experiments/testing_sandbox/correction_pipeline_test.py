@@ -89,12 +89,56 @@ def verify_edge_test(pipeline: CorrectionPipeline, df: pd.DataFrame, num_samples
         print("Overall accuracy: No cases to evaluate")
 
 
+def global_consistency_test(pipeline: CorrectionPipeline, df: pd.DataFrame, num_samples: int) -> None:
+    """
+    Test the global consistency check of correction pipeline and print statistics.
+
+    Args:
+        pipeline: The correction pipeline object
+        df: The dataset to test on
+        num_samples: Number of examples to test
+    """
+    for col in ['model_edges', 'missing_edges', 'extra_edges', 'expected_edges']:
+        if col in df.columns:
+            df[col] = df[col].apply(ast.literal_eval)
+
+    samples = df.sample(num_samples)
+    stats = {
+        'initial_missing': 0,  # Missing edges in model's edges
+        'final_missing': 0,  # Missing edges after correction
+        'initial_extra': 0,  # Extra edges in model's edges
+        'final_extra': 0,  # Extra edges after correction
+        'total_examples': 0  # Number of examples processed
+    }
+
+    for idx, example in samples.iterrows():
+        premise = example['premise']
+        expected_edges = example['expected_edges']
+        missing_edges = example['missing_edges']
+        extra_edges = example['extra_edges']
+        model_edges = example['model_edges']
+
+        print(f"\n===== Testing global consistency for example {idx} =====")
+        print(f"Expected edges: {expected_edges}")
+        print(f"Model edges: {model_edges}")
+        print(f"Missing edges: {missing_edges}")
+        print(f"Extra edges: {extra_edges}")
+
+        # Run global consistency check
+        corrected_edges = pipeline.check_global_consistency(premise, model_edges)
+
+
 def main():
     df: pd.DataFrame = pd.read_csv("failed_experiments_premise.csv")
     pipeline: CorrectionPipeline = CorrectionPipeline(get_test_model())
 
     # Test verify edge
-    verify_edge_test(pipeline, df, 1)
+    # print("\n===== TESTING EDGE VERIFICATION =====")
+    # verify_edge_test(pipeline, df, 1)
+
+    # Test global consistency
+    print("\n===== TESTING GLOBAL CONSISTENCY =====")
+    global_consistency_test(pipeline, df, 1)
 
 
 if __name__ == "__main__":
