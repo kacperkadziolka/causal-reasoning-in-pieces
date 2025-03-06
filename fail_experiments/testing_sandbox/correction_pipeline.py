@@ -42,7 +42,7 @@ class CorrectionPipeline:
         """Verify the global consistency of the graph and suggest corrections by prompting the LLM back."""
         formatted_edges = "\n".join([f"- {edge[0]} -- {edge[1]}" for edge in edges])
         consistency_prompt = self.prompts["verification_prompts"]["global_consistency"].format(
-            problem_statement=premise,
+            premise=premise,
             formatted_edges=formatted_edges
         )
         system_prompt = self.prompts["system_prompts"]["graph_consistency"]
@@ -78,4 +78,50 @@ class CorrectionPipeline:
 
         # Return original edges if parsing fails
         logging.info(f"Failed to parse consistency check response. Returning original edges.")
+        return edges
+
+    def explicit_independence_testing(self, premise: str, edges: list[tuple[str, str]]) -> list[tuple[str, str]]:
+        """
+        Perform explicit conditional independence testing on each edge against each statement.
+        """
+        formatted_edges = "\n".join([f"- {edge[0]} -- {edge[1]}" for edge in edges])
+        prompt = self.prompts["verification_prompts"]["explicit_independence_testing"].format(
+            premise=premise,
+            formatted_edges=formatted_edges
+        )
+        system_prompt = self.prompts["system_prompts"]["graph_consistency"]
+
+        print(system_prompt)
+        print(prompt)
+
+        response = self.llm.generate(prompt, system_prompt)[0]
+        logging.info(f"Initial edges: {edges}")
+        logging.info(f"Explicit independence testing response: {response}")
+
+        # try:
+        #     # Extract the JSON part from the response
+        #     json_start = response.rfind("{")
+        #     json_end = response.rfind("}") + 1
+        #     if json_start >= 0 and json_end > json_start:
+        #         json_str = response[json_start:json_end]
+        #         corrections = ast.literal_eval(json_str)
+        #
+        #         # Apply corrections
+        #         current_edges = set([(min(e[0], e[1]), max(e[0], e[1])) for e in edges])
+        #
+        #         for edge in corrections.get("edges_to_add", []):
+        #             edge_tuple = (min(edge[0], edge[1]), max(edge[0], edge[1]))
+        #             current_edges.add(edge_tuple)
+        #
+        #         for edge in corrections.get("edges_to_remove", []):
+        #             edge_tuple = (min(edge[0], edge[1]), max(edge[0], edge[1]))
+        #             if edge_tuple in current_edges:
+        #                 current_edges.remove(edge_tuple)
+        #
+        #         logging.info(f"Corrected edges: {list(current_edges)}")
+        #         return list(current_edges)
+        # except Exception as e:
+        #     logging.error(f"Error parsing independence testing response: {e}")
+
+        # Return original edges if parsing fails
         return edges

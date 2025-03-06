@@ -128,6 +128,35 @@ def global_consistency_test(pipeline: CorrectionPipeline, df: pd.DataFrame, num_
         corrected_edges = pipeline.check_global_consistency(premise, model_edges)
 
 
+def explicit_independence_test(pipeline: CorrectionPipeline, df: pd.DataFrame, num_samples: int) -> None:
+    """
+    Test the explicit independence testing method and print statistics.
+    """
+    for col in ['model_edges', 'missing_edges', 'extra_edges', 'expected_edges']:
+        if col in df.columns:
+            df[col] = df[col].apply(ast.literal_eval)
+
+    samples = df.sample(num_samples)
+    correct = 0
+    total = 0
+
+    for idx, example in samples.iterrows():
+        premise = example['premise']
+        expected_edges = set([(min(e[0], e[1]), max(e[0], e[1])) for e in example['expected_edges']])
+        missing_edges = example['missing_edges']
+        extra_edges = example['extra_edges']
+        model_edges = example['model_edges']
+
+        print(f"\n===== Testing explicit independence for example {idx} =====")
+        print(f"Expected edges: {expected_edges}")
+        print(f"Model edges: {model_edges}")
+        print(f"Missing edges: {missing_edges}")
+        print(f"Extra edges: {extra_edges}")
+
+        # Run explicit independence testing
+        corrected_edges = pipeline.explicit_independence_testing(premise, model_edges)
+
+
 def main():
     df: pd.DataFrame = pd.read_csv("failed_experiments_premise.csv")
     pipeline: CorrectionPipeline = CorrectionPipeline(get_test_model())
@@ -137,8 +166,12 @@ def main():
     # verify_edge_test(pipeline, df, 1)
 
     # Test global consistency
-    print("\n===== TESTING GLOBAL CONSISTENCY =====")
-    global_consistency_test(pipeline, df, 1)
+    # print("\n===== TESTING GLOBAL CONSISTENCY =====")
+    # global_consistency_test(pipeline, df, 1)
+
+    # Test explicit independence testing
+    print("\n===== TESTING EXPLICIT INDEPENDENCE =====")
+    explicit_independence_test(pipeline, df, 1)
 
 
 if __name__ == "__main__":

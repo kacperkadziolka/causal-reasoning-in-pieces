@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from groq import Groq
 
 config = {
-    "max_tokens": 2048,
+    "max_tokens": 4096,
     "temperature": 0.1,
 }
 

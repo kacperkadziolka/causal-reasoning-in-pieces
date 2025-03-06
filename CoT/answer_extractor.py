@@ -68,33 +68,28 @@ def extract_edges(answer: str) -> set:
         raise RuntimeError(f"Failed to extract edges: {e}")
 
 
-def extract_edges_incident_format(answer: str) -> set:
+def extract_edges_incident_format(answer: str, step: int) -> set:
     """
     Extract the causal edges from the provided LLM answer string using the adjacency list format.
 
     :param answer: The answer returned by the LLM API.
     :return: A set of edges extracted from the answer, represented as sorted tuples.
     """
+    if step == 4:
+        step_pattern = r"Step 4: Compile the Causal Undirected Skeleton"
+    elif step == 5:
+        step_pattern = r"Step 5: Compile the Causal Undirected Skeleton"
+    else:
+        raise ValueError("Step number not recognized.")
+
     try:
         # Normalize line breaks
         answer = answer.replace("\r\n", "\n").replace("\r", "\n")
 
-        # Locate Step 5
-        step_5_pattern = r"Step 5: Compile the Causal Undirected Skeleton"
-        step_5_match = re.search(step_5_pattern, answer, flags=re.IGNORECASE)
-        if not step_5_match:
+        # Locate step with answer
+        step_match = re.search(step_pattern, answer, flags=re.IGNORECASE)
+        if not step_match:
             raise ValueError("Step 5 section not found in the answer.")
-
-        """
-        Temporary solution to run the requests without system prompt.
-        """
-        # step_5_pattern = r"Computed Causal Undirected Skeleton"
-        # step_5_match = re.search(step_5_pattern, answer, flags=re.IGNORECASE)
-        # if not step_5_match:
-        #     raise ValueError("'Computed Causal Undirected Skeleton' section not found in the answer.")
-
-        # Slice the answer from right after Step 5
-        # adjacency_section = answer[step_5_match.end():].splitlines()
 
         """
         Below code works well with the few-shot example, where the answer are more consistent with
@@ -102,7 +97,7 @@ def extract_edges_incident_format(answer: str) -> set:
         line in the output.
         """
         # Find the start of the adjacency list
-        adjacency_start = answer.find("In this graph:", step_5_match.end())
+        adjacency_start = answer.find("In this graph:", step_match.end())
         if adjacency_start == -1:
             raise ValueError("Adjacency list section not found in Step 5.")
 

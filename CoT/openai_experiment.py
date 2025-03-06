@@ -19,33 +19,152 @@ Follow these steps in the provided order to respond accurately:
 
 Step 1: Read the Data
 - Identify extracted nodes and their correlations.
-- Note marginal and conditional independencies.
+- Extract and list ALL marginal and conditional independence statements.
 
 Step 2: Initialize the Graph
 - Create edges between all correlated node pairs.
 - List connections for each node.
 
-Step 3: Apply Marginal Independencies
-- Remove edges based on marginal independencies.
-- Specify removed edges, if any.
+Step 3: Systematic Independence Testing
+- For EACH edge in the initial graph:
+  a. Test against EACH independence statement INDIVIDUALLY
+  b. Document your reasoning for each test
+  c. Decide whether to keep or remove the edge
+- Show your work using EXACTLY this format:
+  * Edge X -- Y:
+    - Testing against statement 1: [exact statement] → [reasoning] → [consistent/inconsistent]
+    - Testing against statement 2: [exact statement] → [reasoning] → [consistent/inconsistent]
+    - [Continue for ALL independence statements]
+    - Decision: [keep/remove] edge X -- Y
 
-Step 4: Apply Conditional Independencies
-- Remove edges based on conditional independencies.
-- Specify which independencies led to each removal.
-
-Step 5: Compile the Causal Undirected Skeleton
+Step 4: Compile the Causal Undirected Skeleton
 - Construct the final graph structure
 - List each node with its connected nodes.
 - Ensure all applied independencies are reflected accurately.
 
-**Example of Step 5:**
+CRITICAL REMINDER ABOUT d-SEPARATION:
+- An edge X -- Y should be REMOVED if and only if there exists ANY independence statement indicating that X and Y are independent (either marginally or conditional on some set of variables).
+- The absence of an independence statement means X and Y are dependent and the edge should be KEPT.
+- Do not assume independencies that are not explicitly stated in the premise
 
-Step 5: Compile the Causal Undirected Skeleton
+IMPORTANT: The output format of Step 4 must match EXACTLY the following example:
+Step 4: Compile the Causal Undirected Skeleton
 In this graph:
-  - Node A is connected to nodes B, C, D.
+  - Node A is connected to nodes B, C.
   - Node B is connected to nodes A, C.
   - Node C is connected to nodes A, B.
-  - Node D is connected to node A.
+"""
+
+user_prompt = """
+Example:
+
+Task Description: Given the provided premise, apply the PC (Peter-Clark) algorithm following the described step-by-step instructions to compute the causal undirected skeleton.
+Premise: Suppose there is a closed system of 5 variables, A, B, C, D and E. All the statistical relations among these 5 variables are as follows: A correlates with C. A correlates with D. A correlates with E. B correlates with C. B correlates with D. B correlates with E. C correlates with D. C correlates with E. D correlates with E. However, A is independent of B. A and D are independent given B and C. A and D are independent given C. B and D are independent given A and C. B and D are independent given C.
+Answer:
+Step 1: Read the Data
+- Extracted nodes: A, B, C, D, E
+- Correlations:
+  - Node A is correlated with nodes C, D, E.
+  - Node B is correlated with nodes C, D, E.
+  - Node C is correlated with nodes A, B, D, E.
+  - Node D is correlated with nodes A, B, C, E.
+  - Node E is correlated with nodes A, B, C, D.
+- Independence Statements:
+  1. A is independent of B
+  2. A and D are independent given B and C
+  3. A and D are independent given C 
+  4. B and D are independent given A and C
+  5. B and D are independent given C
+
+Step 2: Initialize the Graph
+Created edges between all correlated variable pairs. In this graph:
+  - Node A is connected to nodes C, D, E.
+  - Node B is connected to nodes C, D, E.
+  - Node C is connected to nodes A, B, D, E.
+  - Node D is connected to nodes A, B, C, E.
+  - Node E is connected to nodes A, B, C, D.
+
+Step 3: Systematic Independence Testing
+* Edge A -- C:
+  - Statement 1: A is independent of B → This is about A-B independence, not A-C → not relevant
+  - Statement 2: A and D are independent given B and C → This is about A-D independence, not A-C → not relevant
+  - Statement 3: A and D are independent given C → This is about A-D independence, not A-C → not relevant
+  - Statement 4: B and D are independent given A and C → This is about B-D independence, not A-C → not relevant
+  - Statement 5: B and D are independent given C → This is about B-D independence, not A-C → not relevant
+  - Decision: keep edge A -- C based on no relevant statements
+
+* Edge A -- D:
+  - Statement 1: A is independent of B → This is about A-B independence, not A-D → not relevant
+  - Statement 2: A and D are independent given B and C → This directly states A and D are independent when conditioned on B and C → relevant
+  - Statement 3: A and D are independent given C → This directly states A and D are independent when conditioned on C → relevant
+  - Statement 4: B and D are independent given A and C → This is about B-D independence, not A-D → not relevant
+  - Statement 5: B and D are independent given C → This is about B-D independence, not A-D → not relevant
+  - Decision: remove edge A -- D based on statements 2 and 3
+
+* Edge A -- E:
+  - Statement 1: A is independent of B → This is about A-B independence, not A-E → not relevant
+  - Statement 2: A and D are independent given B and C → This is about A-D independence, not A-E → not relevant
+  - Statement 3: A and D are independent given C → This is about A-D independence, not A-E → not relevant
+  - Statement 4: B and D are independent given A and C → This is about B-D independence, not A-E → not relevant
+  - Statement 5: B and D are independent given C → This is about B-D independence, not A-E → not relevant
+  - Decision: keep edge A -- E based on no relevant statements
+
+* Edge B -- C:
+  - Statement 1: A is independent of B → This is about A-B independence, not B-C → not relevant
+  - Statement 2: A and D are independent given B and C → This is about A-D independence, not B-C → not relevant
+  - Statement 3: A and D are independent given C → This is about A-D independence, not B-C → not relevant
+  - Statement 4: B and D are independent given A and C → This is about B-D independence, not B-C → not relevant
+  - Statement 5: B and D are independent given C → This is about B-D independence, not B-C → not relevant
+  - Decision: keep edge B -- C based on no relevant statements
+
+* Edge B -- D:
+  - Statement 1: A is independent of B → This is about A-B independence, not B-D → not relevant
+  - Statement 2: A and D are independent given B and C → This is about A-D independence, not B-D → not relevant
+  - Statement 3: A and D are independent given C → This is about A-D independence, not B-D → not relevant
+  - Statement 4: B and D are independent given A and C → This directly states B and D are independent when conditioned on A and C → relevant
+  - Statement 5: B and D are independent given C → This directly states B and D are independent when conditioned on C → relevant
+  - Decision: remove edge B -- D based on statements 4 and 5
+
+* Edge B -- E:
+  - Statement 1: A is independent of B → This is about A-B independence, not B-E → not relevant
+  - Statement 2: A and D are independent given B and C → This is about A-D independence, not B-E → not relevant
+  - Statement 3: A and D are independent given C → This is about A-D independence, not B-E → not relevant
+  - Statement 4: B and D are independent given A and C → This is about B-D independence, not B-E → not relevant
+  - Statement 5: B and D are independent given C → This is about B-D independence, not B-E → not relevant
+  - Decision: keep edge B -- E based on no relevant statements
+
+* Edge C -- D:
+  - Statement 1: A is independent of B → This is about A-B independence, not C-D → not relevant
+  - Statement 2: A and D are independent given B and C → This is about A-D independence, not C-D → not relevant
+  - Statement 3: A and D are independent given C → This is about A-D independence, not C-D → not relevant
+  - Statement 4: B and D are independent given A and C → This is about B-D independence, not C-D → not relevant
+  - Statement 5: B and D are independent given C → This is about B-D independence, not C-D → not relevant
+  - Decision: keep edge C -- D based on no relevant statements
+
+* Edge C -- E:
+  - Statement 1: A is independent of B → This is about A-B independence, not C-E → not relevant
+  - Statement 2: A and D are independent given B and C → This is about A-D independence, not C-E → not relevant
+  - Statement 3: A and D are independent given C → This is about A-D independence, not C-E → not relevant
+  - Statement 4: B and D are independent given A and C → This is about B-D independence, not C-E → not relevant
+  - Statement 5: B and D are independent given C → This is about B-D independence, not C-E → not relevant
+  - Decision: keep edge C -- E based on no relevant statements
+
+* Edge D -- E:
+  - Statement 1: A is independent of B → This is about A-B independence, not D-E → not relevant
+  - Statement 2: A and D are independent given B and C → This is about A-D independence, not D-E → not relevant
+  - Statement 3: A and D are independent given C → This is about A-D independence, not D-E → not relevant
+  - Statement 4: B and D are independent given A and C → This is about B-D independence, not D-E → not relevant
+  - Statement 5: B and D are independent given C → This is about B-D independence, not D-E → not relevant
+  - Decision: keep edge D -- E based on no relevant statements
+
+Step 4: Compile the Causal Undirected Skeleton
+In this graph:
+  - Node A is connected to nodes C, E.
+  - Node B is connected to nodes C, E.
+  - Node C is connected to nodes A, B, D, E.
+  - Node D is connected to nodes C, E.
+  - Node E is connected to nodes A, B, C, D.
+
 """
 
 
@@ -133,7 +252,7 @@ def run_single_experiment(client: OpenAI, df: DataFrame, log_file_names: dict) -
     try:
         # Generate the prompt for LLM
         print("\nGenerating a few-shot prompt...")
-        prompt_data = generate_few_shot_prompt(df, num_examples=3)
+        prompt_data = generate_few_shot_prompt(df, num_examples=0)
         prompt_content = "\n".join(prompt_data["standard_prompt"])
 
         # Debug: Print the system prompt
@@ -144,25 +263,31 @@ def run_single_experiment(client: OpenAI, df: DataFrame, log_file_names: dict) -
         print("\nGenerated Prompt:")
         print(prompt_content)
 
+        new_prompt = system_prompt + "\n" + prompt_content
+        print("hehe new prompt\n")
+        print(new_prompt)
+
         # Expected answer
         new_question_index = prompt_data["new_question_index"]
         question_row = df.iloc[new_question_index]
         expected_answer = question_row["expected_answer"]
 
         # Extract edges from the expected answer
-        expected_edges = extract_edges_incident_format(expected_answer)
+        expected_edges = extract_edges_incident_format(answer=expected_answer, step=5)
 
         # Generate the answer using the OpenAI API
         completion = client.chat.completions.create(
-            model="gpt-4o-mini",
+            # model="gpt-4o-mini",
+            model="o1-mini",
+            # reasoning_effort="medium",
             messages=[
-                {
-                    "role": "system",
-                    "content": system_prompt
-                },
+                # {
+                #     "role": "developer",
+                #     "content": system_prompt
+                # },
                 {
                     "role": "user",
-                    "content": prompt_content
+                    "content": new_prompt
                 }
             ]
         )
@@ -174,7 +299,7 @@ def run_single_experiment(client: OpenAI, df: DataFrame, log_file_names: dict) -
         print(model_response)
 
         # Extract edges from the model's answer
-        answer_edges = extract_edges_incident_format(model_response)
+        answer_edges = extract_edges_incident_format(answer=model_response, step=4)
 
         # Compare the expected edges with the model's predicted edges
         result = compare_edges(expected_edges, answer_edges)
@@ -239,7 +364,7 @@ def main():
     ### CONFIG ###
     TEMPERATURE: int = 1
     DO_SAMPLE: bool = False
-    NUM_EXPERIMENTS: int = 5
+    NUM_EXPERIMENTS: int = 10
     NO_VARIABLES: int = 5
 
     log_files = get_log_filenames(
@@ -265,9 +390,6 @@ def main():
     client = OpenAI(
         api_key=api_key,
     )
-
-    # Run a single experiment
-    # print(run_single_experiment(client, df))
 
     # Run multiple experiments
     run_multiple_experiments(
