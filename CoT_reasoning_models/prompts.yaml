@@ -1,0 +1,25 @@
+reasoning_prompt: |
+  Task: Based on the given Premise, apply the PC (Peter-Clark) algorithm to identify a causal undirected skeleton from the correlations and independence statements.
+
+  Key Principles:
+  - Initially, assume all correlated variables are connected
+  - An edge X--Y should be removed if ANY independence statement shows X and Y are independent (marginally or conditionally)
+  - Keep all edges unless contradicted by an explicit independence statement
+  - The final skeleton should reflect all independence relationships in the data
+
+  Your analysis should be thorough but focused on removing edges based on independence statements.
+
+  Required Output Format:
+  After completing your analysis, provide your final answer in this exact JSON format:
+
+  ```json
+  {{
+    "nodes": ["list", "of", "nodes"],
+    "edges": [
+      ["Node1", "Node2"],
+      ["Node2", "Node3"]
+    ]
+  }}
+  ```
+
+  Premise: {premise}
