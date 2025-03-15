@@ -1,0 +1,64 @@
+[
+  {
+    "description": "Simple marginal independence",
+    "premise": "A is independent of B.",
+    "expected_separation_sets": {
+      "A,B": []
+    }
+  },
+  {
+    "description": "Simple conditional independence",
+    "premise": "A and B are independent given C.",
+    "expected_separation_sets": {
+      "A,B": ["C"]
+    }
+  },
+  {
+    "description": "Multiple independence statements for different pairs",
+    "premise": "A is independent of B. B and C are independent given D.",
+    "expected_separation_sets": {
+      "A,B": [],
+      "B,C": ["D"]
+    }
+  },
+  {
+    "description": "Multiple independence statements for same pair (last one wins)",
+    "premise": "A and C are independent given B. A and C are independent given D.",
+    "expected_separation_sets": {
+      "A,C": ["D"]
+    }
+  },
+  {
+    "description": "Conditional independence with multiple conditioning variables (comma-separated)",
+    "premise": "A and B are independent given C, D.",
+    "expected_separation_sets": {
+      "A,B": ["C", "D"]
+    }
+  },
+  {
+    "description": "Conditional independence with AND in conditioning set",
+    "premise": "A and B are independent given C and D.",
+    "expected_separation_sets": {
+      "A,B": ["C", "D"]
+    }
+  },
+  {
+    "description": "Complex premise with multiple independence statements",
+    "premise": "Suppose there is a closed system of 5 variables, A, B, C, D and E. All the statistical relations among these 5 variables are as follows: A correlates with B. However, A is independent of C. A and C are independent given B. A and C are independent given B and D.",
+    "expected_separation_sets": {
+      "A,C": ["B", "D"]
+    }
+  },
+  {
+    "description": "Complex premise with multiple independence statements",
+    "premise": "Suppose there is a closed system of 5 variables, A, B, C, D and E. All the statistical relations among these 5 variables are as follows: A correlates with D. A correlates with E. B correlates with D. B correlates with E. C correlates with D. C correlates with E. D correlates with E. However, A is independent of B. A and B are independent given C. A is independent of C. A and C are independent given B. A and E are independent given B, C and D. A and E are independent given B and D. A and E are independent given C and D. A and E are independent given D. B is independent of C. B and C are independent given A. B and E are independent given A, C and D. B and E are independent given A and D. B and E are independent given C and D. B and E are independent given D. C and E are independent given A, B and D. C and E are independent given A and D. C and E are independent given B and D. C and E are independent given D.",
+    "expected_separation_sets": {
+      "A,B": ["C"],
+      "A,C": ["B"],
+      "A,E": ["D"],
+      "B,C": ["A"],
+      "B,E": ["D"],
+      "C,E": ["D"]
+    }
+  }
+]

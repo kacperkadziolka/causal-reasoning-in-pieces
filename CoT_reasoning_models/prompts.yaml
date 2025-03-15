@@ -23,3 +23,42 @@ reasoning_prompt: |
   ```
 
   Premise: {premise}
+  
+reasoning_prompt_vstructure: |
+  Task: Given the following causal skeleton (an undirected graph) produced by the PC algorithm and the Premise which contains independence statements, identify all V-structures (colliders) in the graph.
+  
+  Using the following information perform two tasks:
+  1. Parse the provided premise to extract all independence statements. Each independence statement indicates that a pair of variables are independent, optionally given a conditioning set. Represent these as a dictionary where the key is a pair of variables (e.g., "A,C") and the value is the list of conditioning variables (if any).
+  2. Using the extracted separation sets and the provided causal skeleton, identify all V-structures (colliders).
+  
+  A V-structure (collider) is present if:
+  - There exists a triple of nodes (X, Z, Y) such that edges X--Z and Y--Z are in the skeleton.
+  - There is no direct edge between X and Y.
+  - The separation set for X and Y (as extracted from the premise) does not contain Z.
+  
+  Required Output Format:
+  After completing your analysis, provide your final answer in this exact JSON format:
+  
+  ```json
+  {{
+    "separation_sets": {{
+      "A,C": ["B"],
+      "A,D": [...],
+      ...
+    }},
+    "v_structures": [
+      ["X", "Z", "Y"],
+      ["X2", "Z2", "Y2"]
+    ]
+  }}
+  ```
+  
+  Premise: {premise}
+  
+  Casual skeleton:
+  ```json
+  {{
+    "nodes": {nodes},
+    "edges": {edges}
+  }}
+  ```
