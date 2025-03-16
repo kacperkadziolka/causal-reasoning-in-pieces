@@ -14,8 +14,9 @@ from answer_extractor import extract_edges_incident_format, extract_premise, ext
     extract_vstructures_json, compare_vstructures, aggregate_metrics, display_metrics
 
 CSV_FIELDS_VSTRUCTURES: list[str] = [
+    "skeleton_expected_answer",
+    "skeleton_edges",
     "input_prompt",
-    "expected_answer",
     "model_answer",
     "expected_vstructs",
     "model_vstructs",
@@ -150,8 +151,9 @@ def run_single_experiment(client: OpenAI, df: DataFrame, log_file_names: dict) -
 
         # Log the results
         csv_log_entry = {
+            "skeleton_expected_answer": sample_answer,
+            "skeleton_edges": graph_edges,
             "input_prompt": prompt,
-            "expected_answer": sample_answer,
             "model_answer": model_response,
             "expected_vstructs": expected_v_structures,
             "model_vstructs": answer_v_structures,
