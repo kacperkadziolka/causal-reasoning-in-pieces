@@ -25,27 +25,26 @@ reasoning_prompt: |
   Premise: {premise}
   
 reasoning_prompt_vstructure: |
-  Task: Given the following causal skeleton (an undirected graph) produced by the PC algorithm and the Premise which contains independence statements, identify all V-structures (colliders) in the graph.
+  Task: Given the following causal skeleton (an undirected graph) and independence statements given as Premise, identify all V-structures (colliders) in the graph.
   
-  Using the following information perform two tasks:
-  1. Parse the provided premise to extract all independence statements. Each independence statement indicates that a pair of variables are independent, optionally given a conditioning set. Represent these as a dictionary where the key is a pair of variables (e.g., "A,C") and the value is the list of conditioning variables (if any).
-  2. Using the extracted separation sets and the provided causal skeleton, identify all V-structures (colliders).
-  
-  A V-structure (collider) is present if:
-  - There exists a triple of nodes (X, Z, Y) such that edges X--Z and Y--Z are in the skeleton.
-  - There is no direct edge between X and Y.
-  - The separation set for X and Y (as extracted from the premise) does not contain Z.
-  
+  Key Principles:
+  - A V-structure exists when two non-adjacent nodes X and Y both have edges to a third node Z
+  - For a valid V-structure [X, Z, Y], the separation set that makes X and Y independent must NOT contain Z
+  - All candidate triples must be systematically evaluated against both structural and independence criteria
+  - False positives occur when Z is mistakenly excluded from checking the separation set
+  - False negatives occur when potential V-structures are overlooked
+  - Every node pair with a common neighbor but no direct connection represents a candidate V-structure
+
+  Verification Criteria:
+  - Non-adjacency: X and Y must not share a direct edge
+  - Common neighbor: Both X and Y must be connected to Z
+  - Separation test: Z must NOT appear in any separation set that makes X and Y independent
+
+  Your analysis should be thorough and systematic - examine all potential V-structures while carefully applying the verification criteria to avoid both false positives and false negatives.
+
   Required Output Format:
-  After completing your analysis, provide your final answer in this exact JSON format:
-  
   ```json
   {{
-    "separation_sets": {{
-      "A,C": ["B"],
-      "A,D": [...],
-      ...
-    }},
     "v_structures": [
       ["X", "Z", "Y"],
       ["X2", "Z2", "Y2"]
@@ -62,3 +61,33 @@ reasoning_prompt_vstructure: |
     "edges": {edges}
   }}
   ```
+
+reasoning_prompt_meek: |
+  Task: Based on the given undirected graph skeleton and v-structures, apply the Meek rules to orient as many edges as possible.
+
+  Key Principles:
+  - Start by orienting edges according to the given v-structures
+  - Rule 1: If a→b−c and a,c are not adjacent, then orient b→c
+  - Rule 2: If a→b→c and a−c, then orient a→c
+  - Rule 3: If a−b, a−c, b→d, c→d, and b,c not adjacent, orient a→d
+  - Rule 4: If a−b, a−c, a−d, b→d, c→d, then orient a→b
+  - Apply these rules repeatedly until no more edges can be oriented
+
+  Your analysis should systematically apply these rules until no further orientations are possible.
+
+  Required Output Format:
+  After completing your analysis, provide your final answer in this exact JSON format:
+
+  ```json
+  {{
+    "directed_edges": [
+      ["X", "Y"],  // represents X→Y
+      ["A", "B"]   // represents A→B
+    ]
+  }}
+  
+  Undirected Skeleton:
+  {skeleton}
+  
+  V-Structures: 
+  {v_structures}

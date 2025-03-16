@@ -402,3 +402,102 @@ def compare_vstructures(expected_vstructs: list, answer_vstructs: list) -> dict:
         "missing_vstructs": list(expected_set - answer_set),
         "extra_vstructs": list(answer_set - expected_set)
     }
+
+def extract_directed_edges_json(answer: str) -> list:
+    """
+    Extract the directed edges from the provided LLM answer string using the JSON format.
+
+    :param answer: The answer returned by the LLM API.
+    :return: A list of directed edges (tuples representing source->target) extracted from the answer.
+    """
+    try:
+        # First approach: Find JSON block with triple quotes
+        json_match = re.search(r'```(?:json)?\s*({\s*".*?}\s*)```', answer, re.DOTALL)
+        if json_match:
+            json_str = json_match.group(1)
+            data = json.loads(json_str)
+
+            # Extract directed edges
+            if "directed_edges" in data:
+                directed_edges = [tuple(edge) for edge in data["directed_edges"]]
+                return directed_edges
+
+        # Second approach: Find all potential JSON objects and test each one
+        json_blocks = re.findall(r'{[^{}]*(?:{[^{}]*}[^{}]*)*}', answer)
+        for json_str in json_blocks:
+            try:
+                data = json.loads(json_str)
+                if "directed_edges" in data:
+                    directed_edges = [tuple(edge) for edge in data["directed_edges"]]
+                    return directed_edges
+            except json.JSONDecodeError:
+                continue
+
+        # If no directed_edges found in JSON, look for directed edges in text format
+        edges_pattern = r'directed.?edges?:?\s*\[(.*?)\]'
+        edges_match = re.search(edges_pattern, answer, re.IGNORECASE | re.DOTALL)
+        if edges_match:
+            content = edges_match.group(1)
+            # Extract arrays like ["A", "B"] representing A->B
+            array_pattern = r'\[\s*"([A-E])"\s*,\s*"([A-E])"\s*\]'
+            directed_edges = []
+            for match in re.finditer(array_pattern, content):
+                directed_edges.append(tuple(match.groups()))
+            if directed_edges:
+                return directed_edges
+
+        raise ValueError("No directed edges found in the answer.")
+    except Exception as e:
+        raise RuntimeError(f"Failed to extract directed edges: {e}")
+
+
+def compare_directed_edges(expected_edges: list, model_edges: list) -> dict:
+    """
+    Compare the expected directed edges with the model's predicted directed edges.
+    A directed edge (X,Y) represents X→Y and is different from (Y,X).
+
+    :param expected_edges: The ground-truth directed edges.
+    :param model_edges: The model's predicted directed edges.
+    :return: A dictionary with metrics for comparison.
+    """
+    # Convert to sets for comparison
+    expected_set = set(expected_edges)
+    model_set = set(model_edges)
+
+    # Check if the directed edges are an exact match
+    exact_match = expected_set == model_set
+
+    # Find reversed edges (when direction is flipped)
+    reversed_edges = []
+    for edge in expected_set:
+        reversed = (edge[1], edge[0])
+        if reversed in model_set and edge not in model_set:
+            reversed_edges.append((edge, reversed))
+
+    if exact_match:
+        print("The model's predicted directed edges match the expected directed edges!")
+    else:
+        print("Mismatch found:")
+        print(f"Expected directed edges: {expected_set}")
+        print(f"Model directed edges: {model_set}")
+        print(f"Missing in model: {expected_set - model_set}")
+        print(f"Extra in model: {model_set - expected_set}")
+        if reversed_edges:
+            print(f"Reversed edges (expected→actual): {reversed_edges}")
+
+    # Calculate detailed metrics
+    true_positive = len(expected_set & model_set)
+    false_positive = len(model_set - expected_set)
+    false_negative = len(expected_set - model_set)
+
+    return {
+        "true_positive": true_positive,
+        "false_positive": false_positive,
+        "false_negative": false_negative,
+        "expected_count": len(expected_set),
+        "predicted_count": len(model_set),
+        "exact_match": exact_match,
+        "missing_edges": list(expected_set - model_set),
+        "extra_edges": list(model_set - expected_set),
+        "reversed_edges": reversed_edges
+    }
