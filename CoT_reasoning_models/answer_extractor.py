@@ -451,6 +451,100 @@ def extract_directed_edges_json(answer: str) -> list:
         raise RuntimeError(f"Failed to extract directed edges: {e}")
 
 
+def extract_directed_edges_literal_format_json(answer: str) -> list:
+    """
+    Extract the directed edges from the provided LLM answer string using the expected JSON format.
+
+    Expected JSON format:
+    {
+      "final_graph": {
+        "directed_edges": [
+          {
+            "from": "Node1",
+            "to": "Node2"
+          },
+          {
+            "from": "Node2",
+            "to": "Node3"
+          }
+        ],
+        "undirected_edges": [
+          ["Node3", "Node4"],
+          ["Node5", "Node6"]
+        ]
+      },
+      "orientation_steps": [
+        {
+          "step": 1,
+          "rule_applied": "R1",
+          "edge_oriented": {
+            "from": "Node2",
+            "to": "Node3"
+          },
+          "explanation": "Applied Rule R1 because there exists an edge Node1 → Node2 and an undirected edge Node2 – Node3, with Node1 not adjacent to Node3."
+        },
+        {
+          "step": 2,
+          "rule_applied": "R2",
+          "edge_oriented": {
+            "from": "Node4",
+            "to": "Node5"
+          },
+          "explanation": "Applied Rule R2 due to the chain Node4 → Node6 → Node5, with no direct edge between Node4 and Node5."
+        }
+      ]
+    }
+
+    :param answer: The answer returned by the LLM API.
+    :return: A list of directed edges (tuples representing source->target) extracted from the answer.
+    """
+    try:
+        # First approach: Find JSON block delimited by triple backticks.
+        json_match = re.search(r'```(?:json)?\s*({.*?})\s*```', answer, re.DOTALL)
+        if json_match:
+            json_str = json_match.group(1)
+            data = json.loads(json_str)
+            if "final_graph" in data and "directed_edges" in data["final_graph"]:
+                directed_edges = []
+                for edge in data["final_graph"]["directed_edges"]:
+                    if "from" in edge and "to" in edge:
+                        directed_edges.append((edge["from"], edge["to"]))
+                if directed_edges:
+                    return directed_edges
+
+        # Second approach: Search for any JSON objects within the answer.
+        json_blocks = re.findall(r'{[^{}]*(?:{[^{}]*}[^{}]*)*}', answer)
+        for json_str in json_blocks:
+            try:
+                data = json.loads(json_str)
+                if "final_graph" in data and "directed_edges" in data["final_graph"]:
+                    directed_edges = []
+                    for edge in data["final_graph"]["directed_edges"]:
+                        if "from" in edge and "to" in edge:
+                            directed_edges.append((edge["from"], edge["to"]))
+                    if directed_edges:
+                        return directed_edges
+            except json.JSONDecodeError:
+                continue
+
+        # Third approach: Look for directed edges in text format from the final_graph section.
+        edges_pattern = r'"directed_edges"\s*:\s*\[(.*?)\]'
+        edges_match = re.search(edges_pattern, answer, re.IGNORECASE | re.DOTALL)
+        if edges_match:
+            content = edges_match.group(1)
+            # Each edge is expected to be in the format {"from": "X", "to": "Y"}
+            edge_pattern = r'\{\s*"from"\s*:\s*"([^"]+)"\s*,\s*"to"\s*:\s*"([^"]+)"\s*\}'
+            directed_edges = []
+            for match in re.finditer(edge_pattern, content):
+                directed_edges.append((match.group(1), match.group(2)))
+            if directed_edges:
+                return directed_edges
+
+        raise ValueError("No directed edges found in the answer.")
+    except Exception as e:
+        raise RuntimeError(f"Failed to extract directed edges: {e}")
+
+
 def compare_directed_edges(expected_edges: list, model_edges: list) -> dict:
     """
     Compare the expected directed edges with the model's predicted directed edges.

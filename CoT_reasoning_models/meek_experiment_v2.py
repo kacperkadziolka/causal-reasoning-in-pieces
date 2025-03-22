@@ -10,18 +10,25 @@ from openai import OpenAI
 from pandas import DataFrame
 from tqdm import tqdm
 
+from CoT_reasoning_models.meek_rules import apply_meek_rules
 from answer_extractor import extract_edges_incident_format, extract_premise, extract_separation_sets, find_v_structures, \
-    extract_vstructures_json, compare_vstructures, aggregate_metrics, display_metrics
+    aggregate_metrics, display_metrics, extract_directed_edges_json, compare_directed_edges, \
+    extract_directed_edges_literal_format_json
 
-CSV_FIELDS_VSTRUCTURES: list[str] = [
+CSV_FIELDS_MEEK: list[str] = [
+    "raw_input",
+    "raw_label",
+    "raw_template",
     "skeleton_expected_answer",
     "skeleton_edges",
+    "v_structures",
     "input_prompt",
     "model_answer",
-    "expected_vstructs",
-    "model_vstructs",
-    "missing_vstructs",
-    "extra_vstructs"
+    "expected_directed_edges",
+    "model_directed_edges",
+    "missing_edges",
+    "extra_edges",
+    "reversed_edges"
 ]
 LOGS_DIR: str = "logs"
 
@@ -35,31 +42,32 @@ def ensure_logs_directory_exists():
         print(f"Created logs directory: {LOGS_DIR}")
 
 
-def log_vstructures_experiment_csv(entry: dict, file_path: str) -> None:
+def log_meek_experiment_csv(entry: dict, file_path: str) -> None:
     """
-    Log a v-structures experiment to the appropriate CSV file.
+    Log a Meek rules experiment to the appropriate CSV file.
 
     :param entry: Dictionary containing the experiment data.
     :param file_path: Path to the CSV log file.
     """
     # Convert sets/lists to string representations for CSV
-    entry["expected_vstructs"] = str(list(entry["expected_vstructs"]))
-    entry["model_vstructs"] = str(list(entry["model_vstructs"]))
-    entry["missing_vstructs"] = str(list(entry["missing_vstructs"]))
-    entry["extra_vstructs"] = str(list(entry["extra_vstructs"]))
+    entry["expected_directed_edges"] = str(list(entry["expected_directed_edges"]))
+    entry["model_directed_edges"] = str(list(entry["model_directed_edges"]))
+    entry["missing_edges"] = str(list(entry["missing_edges"]))
+    entry["extra_edges"] = str(list(entry["extra_edges"]))
+    entry["reversed_edges"] = str(list(entry["reversed_edges"]))
 
     file_exists = os.path.exists(file_path)
 
     with open(file_path, "a", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=CSV_FIELDS_VSTRUCTURES)
+        writer = csv.DictWriter(f, fieldnames=CSV_FIELDS_MEEK)
         if not file_exists:
             writer.writeheader()
         writer.writerow(entry)
 
 
-def get_vstructure_log_filenames(temperature: int, do_sample: bool, num_experiments: int, no_variables: int) -> dict:
+def get_meek_log_filenames(temperature: int, do_sample: bool, num_experiments: int, no_variables: int) -> dict:
     """
-    Generate log filenames for v-structure experiments based on configuration parameters.
+    Generate log filenames for Meek rules experiments based on configuration parameters.
     """
     # Ensure logs directory exists
     ensure_logs_directory_exists()
@@ -69,7 +77,7 @@ def get_vstructure_log_filenames(temperature: int, do_sample: bool, num_experime
     date_str = now.strftime("%d-%b-%Y-%H%M")
 
     # Build the base filename
-    base_filename = f"{date_str}-vstructs-temp{temperature}"
+    base_filename = f"{date_str}-meek-temp{temperature}"
 
     if do_sample:
         base_filename += "-dosample"
@@ -80,7 +88,6 @@ def get_vstructure_log_filenames(temperature: int, do_sample: bool, num_experime
         "successful": os.path.join(LOGS_DIR, f"{base_filename}-successful.csv"),
         "failed": os.path.join(LOGS_DIR, f"{base_filename}-failed.csv")
     }
-
 
 def load_yaml(file_path: str) -> dict[str, str]:
     """
@@ -99,10 +106,7 @@ PROMPTS: dict[str, str] = load_yaml("prompts.yaml")
 
 
 def run_single_experiment(client: OpenAI, df: DataFrame, log_file_names: dict) -> Optional[dict]:
-    """
-    Run a single experiment to compare the expected V-structures with the model's predicted V-structures.
-    """
-    nodes = ["A", "B", "C", "D", "E", "F"]
+    nodes = ["A", "B", "C", "D", "E"]
     try:
         # Draw a sample
         sample = df.sample(n=1)
@@ -116,7 +120,6 @@ def run_single_experiment(client: OpenAI, df: DataFrame, log_file_names: dict) -
         # Extract the expected V-structures
         separation_sets = extract_separation_sets(premise=premise)
         expected_v_structures = find_v_structures(skeleton_edges=graph_edges, separation_sets=separation_sets)
-        print(f"Expected V-structures: {expected_v_structures}")
 
         # Format the edges with line breaks
         formatted_edges = "[\n    "
@@ -124,8 +127,11 @@ def run_single_experiment(client: OpenAI, df: DataFrame, log_file_names: dict) -
         formatted_edges += "\n  ]"
 
         # Prepare the prompt
-        prompt_template = PROMPTS["reasoning_prompt_vstructure"]
-        prompt = prompt_template.format(premise=premise, nodes=nodes, edges=formatted_edges)
+        prompt_template = PROMPTS["reasoning_prompt_meek_v2"]
+        prompt = prompt_template.format(premise=premise,
+                                        v_structures=expected_v_structures,
+                                        nodes=nodes,
+                                        edges=formatted_edges)
         print(f"\nInput prompt:\n{prompt}")
 
         completion = client.chat.completions.create(
@@ -142,29 +148,38 @@ def run_single_experiment(client: OpenAI, df: DataFrame, log_file_names: dict) -
         model_response = completion.choices[0].message.content
         print(f"\nModel Response:\n{model_response}")
 
-        # Extract the V-structures from the model response
-        answer_v_structures = extract_vstructures_json(answer=model_response)
-        print(f"\nModel V-structures:\n{answer_v_structures}")
+        # Extract the directed edges from the model response
+        answer_directed_edges = extract_directed_edges_literal_format_json(answer=model_response)
+        print(f"\nModel directed edges:\n{answer_directed_edges}")
 
-        result = compare_vstructures(expected_vstructs=expected_v_structures, answer_vstructs=answer_v_structures)
+        # Extract the expected directed edges
+        expected_directed_edges = apply_meek_rules(skeleton_edges=graph_edges, v_structures=expected_v_structures)
+        print(f"\nExpected directed edges:\n{expected_directed_edges}")
+
+        result = compare_directed_edges(expected_edges=expected_directed_edges, model_edges=answer_directed_edges)
         print(f"\nComparison result:\n{result}")
 
         # Log the results
         csv_log_entry = {
+            "raw_input": sample["input"].iloc[0],
+            "raw_label": sample["label"].iloc[0],
+            "raw_template": sample["template"].iloc[0],
             "skeleton_expected_answer": sample_answer,
             "skeleton_edges": graph_edges,
+            "v_structures": expected_v_structures,
             "input_prompt": prompt,
             "model_answer": model_response,
-            "expected_vstructs": expected_v_structures,
-            "model_vstructs": answer_v_structures,
-            "missing_vstructs": result["missing_vstructs"],
-            "extra_vstructs": result["extra_vstructs"]
+            "expected_directed_edges": expected_directed_edges,
+            "model_directed_edges": answer_directed_edges,
+            "missing_edges": result["missing_edges"],
+            "extra_edges": result["extra_edges"],
+            "reversed_edges": result["reversed_edges"]
         }
 
         if result["exact_match"]:
-            log_vstructures_experiment_csv(csv_log_entry, log_file_names["successful"])
+            log_meek_experiment_csv(csv_log_entry, log_file_names["successful"])
         else:
-            log_vstructures_experiment_csv(csv_log_entry, log_file_names["failed"])
+            log_meek_experiment_csv(csv_log_entry, log_file_names["failed"])
 
         return result
     except Exception as e:
@@ -174,7 +189,7 @@ def run_single_experiment(client: OpenAI, df: DataFrame, log_file_names: dict) -
 
 def run_multiple_experiments(client: OpenAI, df: DataFrame, num_experiments: int, log_file_names: dict) -> None:
     """
-    Run multiple v-structure experiments and calculate aggregate metrics.
+    Run multiple  experiments and calculate aggregate metrics.
 
     :param client: OpenAI API client.
     :param df: DataFrame containing the questions and expected answers.
@@ -184,7 +199,7 @@ def run_multiple_experiments(client: OpenAI, df: DataFrame, num_experiments: int
     results = []
     failed_experiments = 0
 
-    for _ in tqdm(range(num_experiments), desc="Running V-Structure Experiments"):
+    for _ in tqdm(range(num_experiments), desc="Running Meek Rules Experiments"):
         result = run_single_experiment(
             client=client,
             df=df,
@@ -210,10 +225,10 @@ def main():
     ### CONFIG ###
     TEMPERATURE: int = 1
     DO_SAMPLE: bool = False
-    NUM_EXPERIMENTS: int = 4
-    NO_VARIABLES: int = 6
+    NUM_EXPERIMENTS: int = 10
+    NO_VARIABLES: int = 5
 
-    log_files = get_vstructure_log_filenames(
+    log_files = get_meek_log_filenames(
         TEMPERATURE,
         DO_SAMPLE,
         NUM_EXPERIMENTS,
@@ -228,7 +243,7 @@ def main():
         raise ValueError("API key not found. Please set the OPENAI_API_KEY environment variable in your .env file.")
 
     # Load the dataframe
-    csv_file_path = "data/v0.0.7/train.csv"
+    csv_file_path = "data/v0.0.6/train.csv"
     df = pd.read_csv(csv_file_path)
 
     # Initialize the API client

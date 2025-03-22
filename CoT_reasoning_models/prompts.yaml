@@ -25,35 +25,39 @@ reasoning_prompt: |
   Premise: {premise}
   
 reasoning_prompt_vstructure: |
-  Task: Given the following causal skeleton (an undirected graph) and independence statements given as Premise, identify all V-structures (colliders) in the graph.
+  Task: You are given a causal skeleton (an undirected graph produced by the PC algorithm) and a Premise that contains independence statements. Your job is to perform two distinct steps:
   
-  Key Principles:
-  - A V-structure exists when two non-adjacent nodes X and Y both have edges to a third node Z
-  - For a valid V-structure [X, Z, Y], the separation set that makes X and Y independent must NOT contain Z
-  - All candidate triples must be systematically evaluated against both structural and independence criteria
-  - False positives occur when Z is mistakenly excluded from checking the separation set
-  - False negatives occur when potential V-structures are overlooked
-  - Every node pair with a common neighbor but no direct connection represents a candidate V-structure
-
-  Verification Criteria:
-  - Non-adjacency: X and Y must not share a direct edge
-  - Common neighbor: Both X and Y must be connected to Z
-  - Separation test: Z must NOT appear in any separation set that makes X and Y independent
-
-  Your analysis should be thorough and systematic - examine all potential V-structures while carefully applying the verification criteria to avoid both false positives and false negatives.
-
-  Required Output Format:
+  1. Extraction of Independence Statements:
+    - Parse the Premise: Identify and extract all independence statements.
+    - Representation: For each statement that indicates that a pair of variables is independent (optionally given a conditioning set), represent it as an entry in a dictionary. Use a key that is a sorted pair of variables (e.g., "A,C") and set its value as a list of the conditioning variables (if any).
+  2. Identification of V-Structures (Colliders):
+    - Candidate Identification: Systematically consider every triple of nodes (X,Z,Y) from the skeleton where:
+      - There are edges X−−Z and Y−−Z in the skeleton.
+      - There is no direct edge between X and Y (i.e., they are non-adjacent).
+    - Verification via Separation Test:
+      For each candidate triple, check the separation (independence) information:
+      - Valid V-Structure: Include [X,Z,Y] only if for the pair (X,Y) (as found in the independence statements) the corresponding separation set does not contain Z.
+      - Systematic Check: Ensure that every candidate triple is evaluated using the criteria of non-adjacency, common neighbor, and the separation test to avoid false positives (including a Z that appears in the separation set) and false negatives (omitting any valid candidate).
+  
+  Required Output Format
+  After completing your analysis, provide your final answer in this exact JSON format:
   ```json
   {{
+    "separation_sets": {{
+      "A,C": ["B"],
+      "A,D": [...],
+      ...
+    }},
     "v_structures": [
       ["X", "Z", "Y"],
-      ["X2", "Z2", "Y2"]
+      ["X2", "Z2", "Y2"],
+      ...
     ]
   }}
   ```
   
+  Inputs
   Premise: {premise}
-  
   Casual skeleton:
   ```json
   {{
@@ -63,17 +67,13 @@ reasoning_prompt_vstructure: |
   ```
 
 reasoning_prompt_meek: |
-  Task: Based on the given undirected graph skeleton and v-structures, apply the Meek rules to orient as many edges as possible.
+  Task: Orient edges in the undirected graph skeleton to create a maximally oriented partial directed acyclic graph (PDAG) consistent with the v-structures.
 
-  Key Principles:
-  - Start by orienting edges according to the given v-structures
-  - Rule 1: If a→b−c and a,c are not adjacent, then orient b→c
-  - Rule 2: If a→b→c and a−c, then orient a→c
-  - Rule 3: If a−b, a−c, b→d, c→d, and b,c not adjacent, orient a→d
-  - Rule 4: If a−b, a−c, a−d, b→d, c→d, then orient a→b
-  - Apply these rules repeatedly until no more edges can be oriented
+  Context:
+  You're given an undirected skeleton and known v-structures. Your goal is to determine which additional edges can be oriented while maintaining consistency with the equivalence class of DAGs represented by this information.
+  
+  The Meek rules provide logical constraints that must be satisfied in any valid PDAG. Think about how edge orientations propagate through the graph based on these logical constraints until no further orientations are possible.
 
-  Your analysis should systematically apply these rules until no further orientations are possible.
 
   Required Output Format:
   After completing your analysis, provide your final answer in this exact JSON format:
@@ -86,8 +86,107 @@ reasoning_prompt_meek: |
     ]
   }}
   
-  Undirected Skeleton:
-  {skeleton}
+  Undirected Skeleton: {skeleton}
   
-  V-Structures: 
-  {v_structures}
+  V-Structures: {v_structures}
+
+reasoning_prompt_meek_v2: |
+  You are provided with the following inputs:
+  - Premise: A set of statements containing observed correlations along with both marginal and conditional independence relationships.
+  - Causal Undirected Skeleton: An undirected graph representing the associations between variables, derived from the premise.
+  - Identified V-Structures: A set of collider configurations (v-structures) that have been reliably detected in earlier steps.
+  
+  Task: Your goal is to orient as many undirected edges in the causal skeleton as possible by applying Meek’s orientation rules while ensuring:
+  1. Cycle Avoidance: No directed cycles are introduced.
+  2. Preservation of V-Structures: The identified v-structures are maintained without introducing conflicting new ones.
+  3. Consistency with Independence Statements: All orientation decisions must be consistent with both marginal and conditional independence statements from the premise.
+  4. Maximal Orientation: All orientations must be justified by the rules and consistent with the provided constraints.
+  
+  Meek’s Orientation Rules:`
+  - Rule R1: If there exists an edge A → B and an undirected edge B – C, where A and C are not directly connected, then orient B – C as B → C.
+  - Rule R2: If there exists an undirected edge A – B and a chain A → C → B such that there is no direct edge between A and B by an arrow, then orient A – B as A → B.
+  - Rule R3: If there exist two chains A – B → C and A – D → C with B and D not adjacent, then orient A – B and A – D as A → B and A → D, respectively.
+  - Rule R4: If there is an undirected edge A – B and there exists a directed path from A to B, orient the edge as A → B to avoid creating cycles.
+  
+  For each edge orientation, provide a step-by-step explanation that includes:
+  - The step number.
+  - The rule applied.
+  - The specific edge oriented.
+  - A brief explanation of why the rule applies and confirmation that no conflicts (cycles, v-structure violations, or contradictions with any independence statements) are introduced.
+  
+  Required Output Format
+  After completing your analysis, provide your final answer in this exact JSON format:
+  {{
+    "final_graph": {{
+      "directed_edges": [
+        {{
+          "from": "Node1",
+          "to": "Node2"
+        }},
+        {{
+          "from": "Node2",
+          "to": "Node3"
+        }}
+      ],
+      "undirected_edges": [
+        ("Node3", "Node4"),
+        ("Node5", "Node6")
+      ]
+    }},
+    "orientation_steps": [
+      {{
+        "step": 1,
+        "rule_applied": "R1",
+        "edge_oriented": {{
+          "from": "Node2",
+          "to": "Node3"
+        }},
+        "explanation": "Applied Rule R1 because there exists an edge Node1 → Node2 and an undirected edge Node2 – Node3, with Node1 not adjacent to Node3. This orientation is consistent with the independence statements."
+      }},
+      {{
+        "step": 2,
+        "rule_applied": "R2",
+        "edge_oriented": {{
+          "from": "Node4",
+          "to": "Node5"
+        }},
+        "explanation": "Applied Rule R2 due to the chain Node4 → Node6 → Node5, with no direct edge between Node4 and Node5, ensuring no conflict with the provided independence statements."
+      }}
+    ]
+  }}
+  
+  Inputs
+  Premise: {premise}
+  V-Structures: {v_structures}
+  Casual skeleton:
+  ```json
+  {{
+    "nodes": {nodes},
+    "edges": {edges}
+  }}
+  ```
+
+reasoning_prompt_single_stage: |
+  You are provided with the following inputs:
+  - Premise: A set of statements containing observed correlations along with both marginal and conditional independence relationships.
+  - Hypothesis: A statement that posits a particular causal relationship between one or more variables. This claim could assert a direct causal link (for example, 'E directly causes A') or an indirect causal relationship (for example, 'B causes something else which causes A'). The hypothesis specifies what causal connection is being proposed and is what you should evaluate based on the given statistical relations and independence statements.
+  
+  Task: Use the PC (Peter-Clark) algorithm to assess whether the provided causal claim in the hypothesis is supported by the relationships and independence statements in the premise.
+  
+  Key Principles:
+  - Extract the causal undirected skeleton by interpreting the correlations and conditional independencies.
+  - Identify v-structures (colliders) that arise from the undirected skeleton.
+  - Apply Meek rules to further orient remaining undirected edges.
+  - Evaluate the hypothesis based on the processed causal graph.
+  
+  Required Output Format:
+  After completing your analysis, provide your final answer only for the hypothesis as a boolean value (either true or false) in this exact JSON format:
+
+  ```json
+  {{
+    "hypothesis_answer": true/false
+  }}
+  ```
+  
+  Premise: {premise}
+  Hypothesis: {hypothesis}
