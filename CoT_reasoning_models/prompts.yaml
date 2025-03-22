@@ -168,20 +168,36 @@ reasoning_prompt_meek_v2: |
 
 reasoning_prompt_single_stage: |
   You are provided with the following inputs:
-  - Premise: A set of statements containing observed correlations along with both marginal and conditional independence relationships.
-  - Hypothesis: A statement that posits a particular causal relationship between one or more variables. This claim could assert a direct causal link (for example, 'E directly causes A') or an indirect causal relationship (for example, 'B causes something else which causes A'). The hypothesis specifies what causal connection is being proposed and is what you should evaluate based on the given statistical relations and independence statements.
+  - Premise: A set of statements summarizing observed statistical relationships among a set of variables. These include observed correlations along with both marginal and conditional independence relationships that form the evidence for the underlying causal structure.
+  - Hypothesis: A statement positing a specific causal claim regarding the relationships among the variables.
+
+  Task: Use the PC (Peter-Clark) algorithm to evaluate whether the evidence in the premise supports the causal claim stated in the hypothesis.  
   
-  Task: Use the PC (Peter-Clark) algorithm to assess whether the provided causal claim in the hypothesis is supported by the relationships and independence statements in the premise.
-  
-  Key Principles:
-  - Extract the causal undirected skeleton by interpreting the correlations and conditional independencies.
-  - Identify v-structures (colliders) that arise from the undirected skeleton.
-  - Apply Meek rules to further orient remaining undirected edges.
-  - Evaluate the hypothesis based on the processed causal graph.
+  Key Principles
+  1. Causal Skeleton Extraction:
+    - Step: Start with a fully connected undirected graph among all variables with observed correlations. Remove any edge if any independence statement (marginal or conditional) indicates that the two variables are independent.
+    - Principle: Retain an edge only if no independence evidence contradicts the observed correlation.
+  2. Collider (V-Structure) Identification:
+    - Step: For every triple (X, Z, Y) in the skeleton where X and Y are not directly connected but both connect to Z, confirm a v-structure only if the independence information shows that conditioning on Z would induce a dependency between X and Y that is not present marginally.  
+    - Principle: Mark a collider only if Z is not part of the conditioning set that renders X and Y independent.
+  3. Edge Orientation via Meek Rules
+    - Step: Apply all four Meek rules systematically to orient as many undirected edges as possible, ensuring that:
+      - Rule R1: If there is an edge A → B and an undirected edge B – C, with A and C not adjacent, orient B – C as B → C.
+      - Rule R2: If there is an undirected edge A – B and a chain A → C → B (with no direct A–B arrow), orient A – B as A → B.
+      - Rule R3: If there are two chains A – B → C and A – D → C with B and D not adjacent, orient A – B and A – D as A → B and A → D, respectively.
+      - Rule R4: If there is an undirected edge A – B and a directed path exists from A to B, orient the edge as A → B to prevent cycles.
+   - Principle: Only orient an edge when the statistical evidence and existing orientations (including v-structures) unambiguously support a specific direction, ensuring no cycles or conflicts arise.
+  4. Hypothesis Evaluation
+    - Step: Evaluate the final directed graph to decide if it supports the causal claim:
+      - For a direct causal claim (e.g., "C directly causes F"), check that the graph contains a direct edge from C to F.
+      - For an indirect causal claim (e.g., "C is a cause for F, but not a direct one"), verify that there is a directed path from C to F, but no direct edge from C to F.
+      - For a collider claim (e.g., "There exists at least one collider of A and C"), confirm that there exists a variable Z such that A → Z ← C is present.
+      - For a confounder claim (e.g., "There exists at least one confounder of A and B"), check for a variable Z that directly causes both A and B (i.e., Z → A and Z → B).
+   - Principle: The hypothesis is supported (true) only if the final graph clearly reflects the causal relationship as claimed without contradicting the independence evidence. Otherwise, it is not supported (false).
   
   Required Output Format:
   After completing your analysis, provide your final answer only for the hypothesis as a boolean value (either true or false) in this exact JSON format:
-
+  
   ```json
   {{
     "hypothesis_answer": true/false

@@ -1,7 +1,7 @@
 venv
 .env
 CoT/data/v0.0.*
-CoT_reasoning_models/data/v0.0.*
+CoT_reasoning_models/data/*
 experiments
 .idea
 snellius

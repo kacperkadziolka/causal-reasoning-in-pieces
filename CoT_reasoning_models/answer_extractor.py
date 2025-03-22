@@ -26,6 +26,25 @@ def extract_premise(text: str) -> str:
             return text.strip()
 
 
+def extract_hypothesis(text: str) -> str:
+    """
+    Extracts Hypothesis from the input text.
+
+    Parameters:
+    - text (str): The input text containing "Hypothesis:".
+
+    Returns:
+    - str: The extracted hypothesis.
+    """
+    # Use regex to extract everything after "Hypothesis:"
+    match = re.search(r"Hypothesis:\s*(.*)", text, re.DOTALL | re.IGNORECASE)
+    if match:
+        return match.group(1).strip()
+    else:
+        # If "Hypothesis:" is not found, return empty string
+        return ""
+
+
 def compare_edges(expected_edges: set, answer_edges: set) -> dict:
     """
     Compare the expected edges with the model's predicted edges.
@@ -594,4 +613,171 @@ def compare_directed_edges(expected_edges: list, model_edges: list) -> dict:
         "missing_edges": list(expected_set - model_set),
         "extra_edges": list(model_set - expected_set),
         "reversed_edges": reversed_edges
+    }
+
+
+def extract_hypothesis_answer(answer: str) -> bool:
+    """
+    Extract the hypothesis answer (True/False) from the provided LLM answer string.
+
+    Parameters:
+    - answer (str): The answer returned by the LLM API.
+
+    Returns:
+    - bool: The extracted hypothesis answer as a Python boolean.
+
+    Raises:
+    - RuntimeError: If extraction fails.
+    """
+    try:
+        # First approach: Find JSON block with triple quotes
+        json_match = re.search(r'```(?:json)?\s*({\s*".*?}\s*)```', answer, re.DOTALL)
+        if json_match:
+            json_str = json_match.group(1)
+            data = json.loads(json_str)
+
+            if "hypothesis_answer" in data:
+                return bool(data["hypothesis_answer"])
+
+        # Second approach: Find all potential JSON objects and test each one
+        json_blocks = re.findall(r'{[^{}]*(?:{[^{}]*}[^{}]*)*}', answer)
+        for json_str in json_blocks:
+            try:
+                data = json.loads(json_str)
+                if "hypothesis_answer" in data:
+                    return bool(data["hypothesis_answer"])
+            except json.JSONDecodeError:
+                continue
+
+        raise ValueError("No valid JSON with hypothesis_answer found")
+    except Exception as e:
+        raise RuntimeError(f"Failed to extract hypothesis answer: {e}")
+
+
+def compare_hypothesis_answers(expected_answer: bool, model_answer: bool) -> dict:
+    """
+    Compare the expected hypothesis answer with the model's predicted answer.
+
+    Parameters:
+    - expected_answer (bool): The ground-truth answer (True/False).
+    - model_answer (bool): The model's predicted answer (True/False).
+
+    Returns:
+    - dict: A dictionary with comparison metrics.
+    """
+    # Check if the answers match
+    exact_match = expected_answer == model_answer
+
+    # Calculate binary classification metrics
+    true_positive = 1 if expected_answer and model_answer else 0
+    true_negative = 1 if not expected_answer and not model_answer else 0
+    false_positive = 1 if not expected_answer and model_answer else 0
+    false_negative = 1 if expected_answer and not model_answer else 0
+
+    if exact_match:
+        print("\nThe model's predicted answer matches the expected answer!")
+    else:
+        print("\nMismatch found:")
+        print(f"Expected answer: {expected_answer}")
+        print(f"Model answer: {model_answer}")
+
+    return {
+        "true_positive": true_positive,
+        "true_negative": true_negative,
+        "false_positive": false_positive,
+        "false_negative": false_negative,
+        "exact_match": exact_match
+    }
+
+
+def aggregate_metrics_single_prompt(results: list) -> dict:
+    """
+    Aggregate metrics from multiple binary classification experiments (True/False predictions).
+
+    This function calculates key classification metrics including accuracy, precision,
+    recall, and F1-score. It also tracks class-specific performance and experiment success rates.
+
+    Parameters:
+    - results (list): A list of comparison results from multiple experiments.
+
+    Returns:
+    - dict: Key metrics organized in categories:
+      - summary: Overall performance indicators:
+          - accuracy: Percentage of all predictions that were correct (TP+TN)/total
+          - f1_score: Harmonic mean of precision and recall
+          - exact_match_rate: Percentage of experiments with correct predictions
+
+      - experiment_stats: Basic experiment information:
+          - total_samples: Number of hypothesis tests performed
+          - exact_matches: Count of correct predictions
+          - total_experiments: Number of experiment runs
+
+      - class_metrics: Class-specific performance:
+          - precision: When model predicts True, how often it's correct (TP/(TP+FP))
+          - recall: What percentage of actual True cases were caught (TP/(TP+FN))
+          - specificity: What percentage of actual False cases were correct (TN/(TN+FP))
+          - true_class_accuracy: Success rate on "True" hypothesis samples
+          - false_class_accuracy: Success rate on "False" hypothesis samples
+
+      - confusion_matrix: Raw classification counts:
+          - true_positive: Correctly predicted True hypotheses
+          - true_negative: Correctly predicted False hypotheses
+          - false_positive: Incorrectly predicted True (Type I error)
+          - false_negative: Incorrectly predicted False (Type II error)
+          - actual_true/false: Total number of True/False ground truth samples
+    """
+    if not results:
+        return {"error": "No results to aggregate"}
+
+    # Count basic classification outcomes
+    tp = sum(r["true_positive"] for r in results)
+    tn = sum(r["true_negative"] for r in results)
+    fp = sum(r["false_positive"] for r in results)
+    fn = sum(r["false_negative"] for r in results)
+
+    # Key derived metrics
+    total_samples = tp + tn + fp + fn
+    total_actual_true = tp + fn
+    total_actual_false = tn + fp
+
+    # Calculate standard performance metrics
+    accuracy = (tp + tn) / total_samples if total_samples > 0 else 0
+    precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+    recall = tp / (tp + fn) if (tp + fn) > 0 else 0
+    specificity = tn / total_actual_false if total_actual_false > 0 else 0
+    f1_score = (2 * precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
+
+    # Success rates by class
+    true_class_accuracy = tp / total_actual_true if total_actual_true > 0 else 0
+    false_class_accuracy = tn / total_actual_false if total_actual_false > 0 else 0
+
+    # Exact matches
+    exact_matches = sum(1 for r in results if r["exact_match"])
+
+    return {
+        "summary": {
+            "accuracy": accuracy,
+            "f1_score": f1_score,
+            "exact_match_rate": exact_matches / len(results) if results else 0
+        },
+        "experiment_stats": {
+            "total_samples": total_samples,
+            "exact_matches": exact_matches,
+            "total_experiments": len(results)
+        },
+        "class_metrics": {
+            "precision": precision,
+            "recall": recall,
+            "specificity": specificity,
+            "true_class_accuracy": true_class_accuracy,
+            "false_class_accuracy": false_class_accuracy
+        },
+        "confusion_matrix": {
+            "true_positive": tp,
+            "true_negative": tn,
+            "false_positive": fp,
+            "false_negative": fn,
+            "actual_true": total_actual_true,
+            "actual_false": total_actual_false
+        }
     }
