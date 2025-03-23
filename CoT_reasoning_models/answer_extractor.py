@@ -630,24 +630,52 @@ def extract_hypothesis_answer(answer: str) -> bool:
     - RuntimeError: If extraction fails.
     """
     try:
-        # First approach: Find JSON block with triple quotes
-        json_match = re.search(r'```(?:json)?\s*({\s*".*?}\s*)```', answer, re.DOTALL)
-        if json_match:
-            json_str = json_match.group(1)
-            data = json.loads(json_str)
-
+        # First approach: Try to parse the entire answer as JSON
+        try:
+            data = json.loads(answer)
             if "hypothesis_answer" in data:
                 return bool(data["hypothesis_answer"])
+        except json.JSONDecodeError:
+            pass
 
-        # Second approach: Find all potential JSON objects and test each one
-        json_blocks = re.findall(r'{[^{}]*(?:{[^{}]*}[^{}]*)*}', answer)
-        for json_str in json_blocks:
+        # Second approach: Find JSON block with triple quotes
+        json_match = re.search(r'```(?:json)?\s*(.*?)```', answer, re.DOTALL)
+        if json_match:
             try:
+                json_str = json_match.group(1)
                 data = json.loads(json_str)
                 if "hypothesis_answer" in data:
                     return bool(data["hypothesis_answer"])
             except json.JSONDecodeError:
-                continue
+                pass
+
+        # Third approach: Try to find complete JSON objects in the text
+        potential_json_start = 0
+        while potential_json_start < len(answer):
+            start_idx = answer.find('{', potential_json_start)
+            if start_idx == -1:
+                break
+
+            # Find matching closing brace by tracking brace balance
+            open_braces = 1
+            for end_idx in range(start_idx + 1, len(answer)):
+                if answer[end_idx] == '{':
+                    open_braces += 1
+                elif answer[end_idx] == '}':
+                    open_braces -= 1
+
+                if open_braces == 0:
+                    # Found a potential JSON object
+                    try:
+                        json_str = answer[start_idx:end_idx + 1]
+                        data = json.loads(json_str)
+                        if "hypothesis_answer" in data:
+                            return bool(data["hypothesis_answer"])
+                    except json.JSONDecodeError:
+                        pass
+                    break
+
+            potential_json_start = start_idx + 1
 
         raise ValueError("No valid JSON with hypothesis_answer found")
     except Exception as e:

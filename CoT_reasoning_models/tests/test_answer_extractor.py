@@ -1,6 +1,7 @@
 import json
 import pytest
-from CoT_reasoning_models.answer_extractor import extract_edges_json, extract_separation_sets, find_v_structures
+from CoT_reasoning_models.answer_extractor import extract_edges_json, extract_separation_sets, find_v_structures, \
+    extract_hypothesis_answer
 
 with open('test_cases.json', 'r') as file:
     test_cases = json.load(file)
@@ -10,6 +11,9 @@ with open('test_separation_sets.json', 'r') as file:
 
 with open('test_v_structures.json', 'r') as file:
     v_structure_test_cases = json.load(file)
+
+with open('test_hypothesis_answers.json', 'r') as file:
+    hypothesis_test_cases = json.load(file)
 
 
 @pytest.mark.parametrize("test_case", test_cases, ids=[case["description"] for case in test_cases])
@@ -84,3 +88,23 @@ def test_find_v_structures(test_case):
     sorted_expected = sorted(normalized_expected)
 
     assert sorted_result == sorted_expected, f"V-structure mismatch: expected {sorted_expected}, got {sorted_result}"
+
+
+@pytest.mark.parametrize("test_case", hypothesis_test_cases,
+                         ids=[case["description"] for case in hypothesis_test_cases])
+def test_extract_hypothesis_answer(test_case):
+    """Test the extract_hypothesis_answer function."""
+    answer = test_case["answer"]
+    expected_result = test_case["expected_result"]
+    assert extract_hypothesis_answer(answer) == expected_result
+
+
+@pytest.mark.parametrize("test_case", hypothesis_test_cases,
+                         ids=[case["description"] for case in hypothesis_test_cases])
+def test_extract_hypothesis_answer_no_exceptions(test_case):
+    """Test that extract_hypothesis_answer doesn't throw any exceptions."""
+    answer = test_case["answer"]
+    try:
+        extract_hypothesis_answer(answer)
+    except Exception as e:
+        pytest.fail(f"extract_hypothesis_answer raised {type(e).__name__} unexpectedly: {e}")
