@@ -1,7 +1,7 @@
 import json
 import pytest
 from CoT_reasoning_models.answer_extractor import extract_edges_json, extract_separation_sets, find_v_structures, \
-    extract_hypothesis_answer
+    extract_hypothesis_answer, extract_directed_edges_literal_format_json
 
 with open('test_cases.json', 'r') as file:
     test_cases = json.load(file)
@@ -14,6 +14,9 @@ with open('test_v_structures.json', 'r') as file:
 
 with open('test_hypothesis_answers.json', 'r') as file:
     hypothesis_test_cases = json.load(file)
+
+with open('test_directed_edges.json', 'r') as file:
+    directed_edges_test_cases = json.load(file)
 
 
 @pytest.mark.parametrize("test_case", test_cases, ids=[case["description"] for case in test_cases])
@@ -108,3 +111,17 @@ def test_extract_hypothesis_answer_no_exceptions(test_case):
         extract_hypothesis_answer(answer)
     except Exception as e:
         pytest.fail(f"extract_hypothesis_answer raised {type(e).__name__} unexpectedly: {e}")
+
+
+@pytest.mark.parametrize("test_case", directed_edges_test_cases,
+                         ids=[case["description"] for case in directed_edges_test_cases])
+def test_extract_directed_edges_literal_format_json(test_case):
+    """Test the extract_directed_edges_literal_format_json function."""
+    answer = test_case["answer"]
+    expected_result = [tuple(edge) for edge in test_case["expected_directed_edges"]]
+
+    if test_case.get("should_raise_error", False):
+        with pytest.raises(RuntimeError):
+            extract_directed_edges_literal_format_json(answer)
+    else:
+        assert extract_directed_edges_literal_format_json(answer) == expected_result

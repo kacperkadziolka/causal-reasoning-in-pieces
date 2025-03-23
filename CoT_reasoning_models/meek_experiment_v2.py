@@ -148,13 +148,13 @@ def run_single_experiment(client: OpenAI, df: DataFrame, log_file_names: dict) -
         model_response = completion.choices[0].message.content
         print(f"\nModel Response:\n{model_response}")
 
-        # Extract the directed edges from the model response
-        answer_directed_edges = extract_directed_edges_literal_format_json(answer=model_response)
-        print(f"\nModel directed edges:\n{answer_directed_edges}")
-
         # Extract the expected directed edges
         expected_directed_edges = apply_meek_rules(skeleton_edges=graph_edges, v_structures=expected_v_structures)
         print(f"\nExpected directed edges:\n{expected_directed_edges}")
+
+        # Extract the directed edges from the model response
+        answer_directed_edges = extract_directed_edges_literal_format_json(answer=model_response)
+        print(f"\nModel directed edges:\n{answer_directed_edges}")
 
         result = compare_directed_edges(expected_edges=expected_directed_edges, model_edges=answer_directed_edges)
         print(f"\nComparison result:\n{result}")
