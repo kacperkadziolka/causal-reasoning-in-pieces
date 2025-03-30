@@ -1,0 +1,51 @@
+reasoning_prompt_single_stage_no1: |
+  You are provided with the following inputs:
+  - Premise: A set of statements containing observed correlations along with both marginal and conditional independence relationships.
+  - Hypothesis: A statement that posits a particular causal relationship between one or more variables. This claim could assert a direct causal link (for example, 'E directly causes A') or an indirect causal relationship (for example, 'B causes something else which causes A'). The hypothesis specifies what causal connection is being proposed and is what you should evaluate based on the given statistical relations and independence statements.
+
+  Task: Use the PC (Peter-Clark) algorithm to assess whether the provided causal claim in the hypothesis is supported by the relationships and independence statements in the premise.
+
+  Key Principles:
+  - Extract the causal undirected skeleton by interpreting the correlations and conditional independencies.
+  - Identify v-structures (colliders) that arise from the undirected skeleton and separation sets.
+  - Apply Meek rules to further orient remaining undirected edges.
+  - Evaluate the hypothesis based on the processed causal graph.
+
+  Required Output Format:
+  After completing your analysis, provide your final answer only for the hypothesis as a boolean value (either true or false) in this exact JSON format:
+
+  ```json
+  {{
+    "hypothesis_answer": true/false
+  }}
+  ```
+
+  Premise: {premise}
+  Hypothesis: {hypothesis}
+
+reasoning_prompt_single_stage_no2: |
+  You are a scientist specializing in causal discovery algorithms, particularly the Peter-Clark (PC) algorithm. You expertly apply correlation statements to initialize graphs and use independence assertions to compute causal undirected skeletons. You have the skill to leverage these skeletons and separation sets to identify v-structures and then translate them into a maximally oriented graph by applying Meek rules. You can also evaluate hypotheses about specific causal relationships between variables, determining whether the provided correlation and independence statements support those hypotheses.
+  
+  You are provided with the following inputs:
+  - Premise: A set of statements containing observed correlations along with both marginal and conditional independence relationships.
+  - Hypothesis: A statement that posits a particular causal relationship between one or more variables. This claim could assert a direct causal link (for example, 'E directly causes A') or an indirect causal relationship (for example, 'B causes something else which causes A'). The hypothesis specifies what causal connection is being proposed and is what you should evaluate based on the given statistical relations and independence statements.
+
+  Task: Use the PC (Peter-Clark) algorithm to assess whether the provided causal claim in the hypothesis is supported by the relationships and independence statements in the premise.
+
+  Key Principles:
+  - Extract the causal undirected skeleton by interpreting the correlations and conditional independencies.
+  - Identify v-structures (colliders) that arise from the undirected skeleton and separation sets.
+  - Apply Meek rules to further orient remaining undirected edges.
+  - Evaluate the hypothesis based on the processed causal graph.
+
+  Required Output Format:
+  After completing your analysis, provide your final answer only for the hypothesis as a boolean value (either true or false) in this exact JSON format:
+
+  ```json
+  {{
+    "hypothesis_answer": true/false
+  }}
+  ```
+
+  Premise: {premise}
+  Hypothesis: {hypothesis}

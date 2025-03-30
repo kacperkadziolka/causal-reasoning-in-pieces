@@ -709,39 +709,13 @@ def compare_hypothesis_answers(expected_answer: bool, model_answer: bool) -> dic
 
 def aggregate_metrics_single_prompt(results: list) -> dict:
     """
-    Aggregate metrics from multiple binary classification experiments (True/False predictions).
-
-    This function calculates key classification metrics including accuracy, precision,
-    recall, and F1-score. It also tracks class-specific performance and experiment success rates.
+    Aggregate metrics from multiple binary classification experiments.
 
     Parameters:
     - results (list): A list of comparison results from multiple experiments.
 
     Returns:
-    - dict: Key metrics organized in categories:
-      - summary: Overall performance indicators:
-          - accuracy: Percentage of all predictions that were correct (TP+TN)/total
-          - f1_score: Harmonic mean of precision and recall
-          - exact_match_rate: Percentage of experiments with correct predictions
-
-      - experiment_stats: Basic experiment information:
-          - total_samples: Number of hypothesis tests performed
-          - exact_matches: Count of correct predictions
-          - total_experiments: Number of experiment runs
-
-      - class_metrics: Class-specific performance:
-          - precision: When model predicts True, how often it's correct (TP/(TP+FP))
-          - recall: What percentage of actual True cases were caught (TP/(TP+FN))
-          - specificity: What percentage of actual False cases were correct (TN/(TN+FP))
-          - true_class_accuracy: Success rate on "True" hypothesis samples
-          - false_class_accuracy: Success rate on "False" hypothesis samples
-
-      - confusion_matrix: Raw classification counts:
-          - true_positive: Correctly predicted True hypotheses
-          - true_negative: Correctly predicted False hypotheses
-          - false_positive: Incorrectly predicted True (Type I error)
-          - false_negative: Incorrectly predicted False (Type II error)
-          - actual_true/false: Total number of True/False ground truth samples
+    - dict: Confusion matrix and key performance metrics.
     """
     if not results:
         return {"error": "No results to aggregate"}
@@ -752,49 +726,24 @@ def aggregate_metrics_single_prompt(results: list) -> dict:
     fp = sum(r["false_positive"] for r in results)
     fn = sum(r["false_negative"] for r in results)
 
-    # Key derived metrics
+    # Calculate performance metrics
     total_samples = tp + tn + fp + fn
-    total_actual_true = tp + fn
-    total_actual_false = tn + fp
-
-    # Calculate standard performance metrics
     accuracy = (tp + tn) / total_samples if total_samples > 0 else 0
     precision = tp / (tp + fp) if (tp + fp) > 0 else 0
     recall = tp / (tp + fn) if (tp + fn) > 0 else 0
-    specificity = tn / total_actual_false if total_actual_false > 0 else 0
     f1_score = (2 * precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
 
-    # Success rates by class
-    true_class_accuracy = tp / total_actual_true if total_actual_true > 0 else 0
-    false_class_accuracy = tn / total_actual_false if total_actual_false > 0 else 0
-
-    # Exact matches
-    exact_matches = sum(1 for r in results if r["exact_match"])
-
     return {
-        "summary": {
-            "accuracy": accuracy,
-            "f1_score": f1_score,
-            "exact_match_rate": exact_matches / len(results) if results else 0
-        },
-        "experiment_stats": {
-            "total_samples": total_samples,
-            "exact_matches": exact_matches,
-            "total_experiments": len(results)
-        },
-        "class_metrics": {
-            "precision": precision,
-            "recall": recall,
-            "specificity": specificity,
-            "true_class_accuracy": true_class_accuracy,
-            "false_class_accuracy": false_class_accuracy
-        },
         "confusion_matrix": {
             "true_positive": tp,
             "true_negative": tn,
             "false_positive": fp,
             "false_negative": fn,
-            "actual_true": total_actual_true,
-            "actual_false": total_actual_false
+        },
+        "performance_metrics": {
+            "accuracy": accuracy,
+            "precision": precision,
+            "recall": recall,
+            "f1_score": f1_score
         }
     }

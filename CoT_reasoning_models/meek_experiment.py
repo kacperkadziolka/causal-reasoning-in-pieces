@@ -220,7 +220,7 @@ def main():
     ### CONFIG ###
     TEMPERATURE: int = 1
     DO_SAMPLE: bool = False
-    NUM_EXPERIMENTS: int = 1
+    NUM_EXPERIMENTS: int = 10
     NO_VARIABLES: int = 5
 
     log_files = get_meek_log_filenames(

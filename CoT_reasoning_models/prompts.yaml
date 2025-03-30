@@ -91,29 +91,15 @@ reasoning_prompt_meek: |
   V-Structures: {v_structures}
 
 reasoning_prompt_meek_v2: |
-  You are provided with the following inputs:
-  - Premise: A set of statements containing observed correlations along with both marginal and conditional independence relationships.
-  - Causal Undirected Skeleton: An undirected graph representing the associations between variables, derived from the premise.
-  - Identified V-Structures: A set of collider configurations (v-structures) that have been reliably detected in earlier steps.
-  
-  Task: Your goal is to orient as many undirected edges in the causal skeleton as possible by applying Meek’s orientation rules while ensuring:
-  1. Cycle Avoidance: No directed cycles are introduced.
-  2. Preservation of V-Structures: The identified v-structures are maintained without introducing conflicting new ones.
-  3. Consistency with Independence Statements: All orientation decisions must be consistent with both marginal and conditional independence statements from the premise.
-  4. Maximal Orientation: All orientations must be justified by the rules and consistent with the provided constraints.
-  
-  Meek’s Orientation Rules:`
-  - Rule R1: If there exists an edge A → B and an undirected edge B – C, where A and C are not directly connected, then orient B – C as B → C.
-  - Rule R2: If there exists an undirected edge A – B and a chain A → C → B such that there is no direct edge between A and B by an arrow, then orient A – B as A → B.
-  - Rule R3: If there exist two chains A – B → C and A – D → C with B and D not adjacent, then orient A – B and A – D as A → B and A → D, respectively.
-  - Rule R4: If there is an undirected edge A – B and there exists a directed path from A to B, orient the edge as A → B to avoid creating cycles.
-  
-  For each edge orientation, provide a step-by-step explanation that includes:
-  - The step number.
-  - The rule applied.
-  - The specific edge oriented.
-  - A brief explanation of why the rule applies and confirmation that no conflicts (cycles, v-structure violations, or contradictions with any independence statements) are introduced.
-  
+  You are a world-class causal inference expert with extensive experience in statistical methods, causal discovery, and graphical models. Your expertise includes applying the orientation phase of the Peter-Clark (PC) algorithm—specifically, its Meek orientation rules—to rigorously evaluate and orient undirected edges in causal graphs based on observed correlations and independence relationships.
+
+  Your task is to analyze the given inputs by transforming an undirected causal skeleton into a partially directed acyclic graph. Apply the orientation procedure (i.e., the PC algorithm’s Meek rules) to direct as many undirected edges as possible while strictly adhering to the following constraints:
+  - Cycle Avoidance: Do not introduce any directed cycles.
+  - V-Structure Preservation: Ensure that all identified v-structures are maintained without conflicts.
+  - Independence Consistency: All edge orientations must be consistent with the observed marginal and conditional independence statements.
+  - Edge Pool Restriction: Only orient edges that are present in the provided causal skeleton.
+  - Conservative Orientation: When ambiguity arises, leave the edge undirected to avoid potential conflicts.
+    
   Required Output Format
   After completing your analysis, provide your final answer in this exact JSON format:
   {{
@@ -129,8 +115,8 @@ reasoning_prompt_meek_v2: |
         }}
       ],
       "undirected_edges": [
-        ("Node3", "Node4"),
-        ("Node5", "Node6")
+        ["Node3", "Node4"],
+        ["Node5", "Node6"]
       ]
     }},
     "orientation_steps": [
@@ -140,8 +126,7 @@ reasoning_prompt_meek_v2: |
         "edge_oriented": {{
           "from": "Node2",
           "to": "Node3"
-        }},
-        "explanation": "Applied Rule R1 because there exists an edge Node1 → Node2 and an undirected edge Node2 – Node3, with Node1 not adjacent to Node3. This orientation is consistent with the independence statements."
+        }}
       }},
       {{
         "step": 2,
@@ -149,13 +134,114 @@ reasoning_prompt_meek_v2: |
         "edge_oriented": {{
           "from": "Node4",
           "to": "Node5"
-        }},
-        "explanation": "Applied Rule R2 due to the chain Node4 → Node6 → Node5, with no direct edge between Node4 and Node5, ensuring no conflict with the provided independence statements."
+        }}
       }}
     ]
   }}
   
-  Inputs
+  Ground Truth Example:
+  Premise: Suppose there is a closed system of 6 variables, A, B, C, D, E and F. All the statistical relations among these 6 variables are as follows: A correlates with C. A correlates with D. A correlates with E. A correlates with F. B correlates with C. B correlates with D. B correlates with E. B correlates with F. C correlates with D. C correlates with E. C correlates with F. D correlates with E. D correlates with F. E correlates with F. However, A is independent of B. B and D are independent given A and C. C and F are independent given A, B, D and E. C and F are independent given A, B and E. D and F are independent given A, B, C and E. D and F are independent given A, B and E.
+  V-Structures: [('A', 'F', 'B'), ('A', 'C', 'B'), ('B', 'E', 'D'), ('B', 'E', 'A')]
+  Casual skeleton:
+  ```json
+  {{
+    "nodes": ["A", "B", "C", "D", "E", "F"],
+    "edges": [
+      ["D", "E"],
+      ["B", "F"],
+      ["A", "E"],
+      ["A", "D"],
+      ["A", "F"],
+      ["E", "F"],
+      ["B", "C"],
+      ["A", "C"],
+      ["B", "E"],
+      ["C", "E"],
+      ["C", "D"]
+    ]
+  }}
+  ```
+  
+  Ground Truth Example Output:
+  ```json
+  {{
+    "final_graph": {{
+      "directed_edges": [
+        {{ "from": "A", "to": "C" }},
+        {{ "from": "A", "to": "D" }},
+        {{ "from": "A", "to": "E" }},
+        {{ "from": "A", "to": "F" }},
+        {{ "from": "B", "to": "C" }},
+        {{ "from": "B", "to": "E" }},
+        {{ "from": "B", "to": "F" }},
+        {{ "from": "C", "to": "D" }},
+        {{ "from": "C", "to": "E" }},
+        {{ "from": "D", "to": "E" }},
+        {{ "from": "E", "to": "F" }}
+      ],
+      "undirected_edges": []
+    }},
+    "orientation_steps": [
+      {{
+        "step": 1,
+        "rule_applied": "V-Structure",
+        "edge_oriented": {{ "from": "A", "to": "F" }}
+      }},
+      {{
+        "step": 2,
+        "rule_applied": "V-Structure",
+        "edge_oriented": {{ "from": "B", "to": "F" }}
+      }},
+      {{
+        "step": 3,
+        "rule_applied": "V-Structure",
+        "edge_oriented": {{ "from": "A", "to": "C" }}
+      }},
+      {{
+        "step": 4,
+        "rule_applied": "V-Structure",
+        "edge_oriented": {{ "from": "B", "to": "C" }}
+      }},
+      {{
+        "step": 5,
+        "rule_applied": "V-Structure",
+        "edge_oriented": {{ "from": "B", "to": "E" }}
+      }},
+      {{
+        "step": 6,
+        "rule_applied": "V-Structure",
+        "edge_oriented": {{ "from": "D", "to": "E" }}
+      }},
+      {{
+        "step": 7,
+        "rule_applied": "V-Structure",
+        "edge_oriented": {{ "from": "A", "to": "E" }}
+      }},
+      {{
+        "step": 8,
+        "rule_applied": "R1",
+        "edge_oriented": {{ "from": "C", "to": "D" }}
+      }},
+      {{
+        "step": 9,
+        "rule_applied": "R2",
+        "edge_oriented": {{ "from": "A", "to": "D" }}
+      }},
+      {{
+        "step": 10,
+        "rule_applied": "R1",
+        "edge_oriented": {{ "from": "C", "to": "E" }}
+      }},
+      {{
+        "step": 11,
+        "rule_applied": "R1",
+        "edge_oriented": {{ "from": "E", "to": "F" }}
+      }}
+    ]
+  }}
+  ```
+  
+  Question Input:
   Premise: {premise}
   V-Structures: {v_structures}
   Casual skeleton:
@@ -167,42 +253,133 @@ reasoning_prompt_meek_v2: |
   ```
 
 reasoning_prompt_single_stage: |
+  You are a world-class causal inference expert with extensive experience in statistical methods, causal discovery, and graphical models. Your expertise lies in using algorithms such as the PC algorithm to analyze observed correlations and independence statements. In this role, your goal is to provide rigorous, step-by-step evaluations of causal hypotheses based on the given premises.
+  
   You are provided with the following inputs:
-  - Premise: A set of statements summarizing observed statistical relationships among a set of variables. These include observed correlations along with both marginal and conditional independence relationships that form the evidence for the underlying causal structure.
-  - Hypothesis: A statement positing a specific causal claim regarding the relationships among the variables.
-
-  Task: Use the PC (Peter-Clark) algorithm to evaluate whether the evidence in the premise supports the causal claim stated in the hypothesis.  
+  - Premise: A set of statements containing observed correlations along with both marginal and conditional independence relationships.
+  - Hypothesis: A statement that posits a particular causal relationship between one or more variables. This claim could assert a direct causal link (for example, 'E directly causes A') or an indirect causal relationship (for example, 'B causes something else which causes A'). The hypothesis specifies what causal connection is being proposed and is what you should evaluate based on the given statistical relations and independence statements.
   
-  Key Principles
+  Task: Use the PC (Peter-Clark) algorithm to assess whether the provided causal claim in the hypothesis is supported by the relationships and independence statements in the premise.
+  
+  Key Principles:
   1. Causal Skeleton Extraction:
-    - Step: Start with a fully connected undirected graph among all variables with observed correlations. Remove any edge if any independence statement (marginal or conditional) indicates that the two variables are independent.
-    - Principle: Retain an edge only if no independence evidence contradicts the observed correlation.
-  2. Collider (V-Structure) Identification:
-    - Step: For every triple (X, Z, Y) in the skeleton where X and Y are not directly connected but both connect to Z, confirm a v-structure only if the independence information shows that conditioning on Z would induce a dependency between X and Y that is not present marginally.  
-    - Principle: Mark a collider only if Z is not part of the conditioning set that renders X and Y independent.
-  3. Edge Orientation via Meek Rules
-    - Step: Apply all four Meek rules systematically to orient as many undirected edges as possible, ensuring that:
-      - Rule R1: If there is an edge A → B and an undirected edge B – C, with A and C not adjacent, orient B – C as B → C.
-      - Rule R2: If there is an undirected edge A – B and a chain A → C → B (with no direct A–B arrow), orient A – B as A → B.
-      - Rule R3: If there are two chains A – B → C and A – D → C with B and D not adjacent, orient A – B and A – D as A → B and A → D, respectively.
-      - Rule R4: If there is an undirected edge A – B and a directed path exists from A to B, orient the edge as A → B to prevent cycles.
-   - Principle: Only orient an edge when the statistical evidence and existing orientations (including v-structures) unambiguously support a specific direction, ensuring no cycles or conflicts arise.
-  4. Hypothesis Evaluation
-    - Step: Evaluate the final directed graph to decide if it supports the causal claim:
-      - For a direct causal claim (e.g., "C directly causes F"), check that the graph contains a direct edge from C to F.
-      - For an indirect causal claim (e.g., "C is a cause for F, but not a direct one"), verify that there is a directed path from C to F, but no direct edge from C to F.
-      - For a collider claim (e.g., "There exists at least one collider of A and C"), confirm that there exists a variable Z such that A → Z ← C is present.
-      - For a confounder claim (e.g., "There exists at least one confounder of A and B"), check for a variable Z that directly causes both A and B (i.e., Z → A and Z → B).
-   - Principle: The hypothesis is supported (true) only if the final graph clearly reflects the causal relationship as claimed without contradicting the independence evidence. Otherwise, it is not supported (false).
+     - Step: Start with a fully connected undirected graph among all variables with observed correlations. Remove any edge if any independence statement (marginal or conditional) indicates that the two variables are independent.
+     - Principle: Retain an edge only if no independence evidence contradicts the observed correlation.
+     - Common Error to Avoid: Don't miss any independence statements, including those with multiple conditioning variables.
+     - Mini-Example: If given "A correlates with B, A correlates with C, B and C are independent given A", then the skeleton would have edges A—B and A—C, but no B—C edge.
   
+  2. Collider (V-Structure) Identification:
+     - Step: For every triple (X, Z, Y) in the skeleton where X and Y are not directly connected but both connect to Z, confirm a v-structure only if the independence information shows that conditioning on Z would induce a dependency between X and Y that is not present marginally.
+     - Principle: Mark a collider only if Z is not part of the conditioning set that renders X and Y independent.
+     - Example: If X and Y are independent unconditionally, but not independent when conditioning on Z, then Z is a collider (X → Z ← Y).
+     - Mini-Example: In the triple A—C—B where A and B are not adjacent, if A and B are independent, but A and B are dependent given C, then C is a collider: A → C ← B.
+  
+  3. Edge Orientation via Meek Rules:
+     - Step: Apply all four Meek rules systematically to orient as many undirected edges as possible, ensuring that:
+       - Rule R1: If there is an edge A → B and an undirected edge B – C, with A and C not adjacent, orient B – C as B → C.
+       - Rule R2: If there is an undirected edge A – B and a chain A → C → B (with no direct A–B arrow), orient A – B as A → B.
+       - Rule R3: If there are two chains A – B → C and A – D → C with B and D not adjacent, orient A – B and A – D as A → B and A → D, respectively.
+       - Rule R4: If there is an undirected edge A – B and a directed path exists from A to B, orient the edge as A → B to prevent cycles.
+     - Principle: Only orient an edge when the statistical evidence and existing orientations (including v-structures) unambiguously support a specific direction, ensuring no cycles or conflicts arise.
+     - Mini-Example: If we have A → B — C with no edge between A and C, then by Rule R1, we must orient B — C as B → C to avoid creating a new v-structure A → B ← C which would contradict our data.
+     - Important: Apply these rules iteratively until no more edges can be oriented.
+  
+  4. Hypothesis Evaluation:
+     - Step: Evaluate the final directed graph to decide if it supports the causal claim:
+       - For a direct causal claim (e.g., "X directly causes Y"), check that the graph contains a direct edge from X to Y.
+       - For an indirect causal claim (e.g., "X is a cause for Y, but not a direct one"), verify that there is a directed path from X to Y, but no direct edge from X to Y.
+       - For a collider claim (e.g., "There exists at least one collider of X and Y"), confirm that there exists a variable Z such that X → Z ← Y is present.
+       - For a confounder claim (e.g., "There exists at least one confounder of X and Y"), check for a variable Z that directly causes both X and Y (i.e., Z → X and Z → Y).
+     - Principle: The hypothesis is supported (true) only if the final graph clearly reflects the causal relationship as claimed without contradicting the independence evidence. Otherwise, it is not supported (false).
+     - Mini-Example: Given a graph where A → B → C and the hypothesis "A is a cause of C, but not directly", the answer would be true because A causes C through B, but there's no direct edge A → C.
+
+  Example 1:
+  Premise: Suppose there is a closed system of 6 variables, A, B, C, D, E and F. All the statistical relations among these 6 variables are as follows: A correlates with D. A correlates with E. A correlates with F. B correlates with E. B correlates with F. C correlates with E. C correlates with F. D correlates with E. D correlates with F. E correlates with F. However, A is independent of B. A and B are independent given C. A and B are independent given C and D. A and B are independent given D. A is independent of C. A and C are independent given B. A and C are independent given B and D. A and C are independent given D. B is independent of C. B and C are independent given A. B and C are independent given A and D. B and C are independent given D. B is independent of D. B and D are independent given A. B and D are independent given A and C. B and D are independent given C. C is independent of D. C and D are independent given A. C and D are independent given A and B. C and D are independent given B. D and F are independent given A, B, C and E. 
+  Hypothesis: There exists at least one collider (i.e., common effect) of B and C.
+
+  ```json
+  {{
+    "hypothesis_answer": true
+  }}
+  
+  Example 2:
+  Premise: Suppose there is a closed system of 6 variables, A, B, C, D, E and F. All the statistical relations among these 6 variables are as follows: A correlates with C. A correlates with E. A correlates with F. B correlates with C. B correlates with E. B correlates with F. C correlates with E. C correlates with F. D correlates with E. D correlates with F. E correlates with F. However, A is independent of B. A and B are independent given D. A is independent of D. A and D are independent given B. A and D are independent given B and C. A and D are independent given B, C and E. A and D are independent given B, C, E and F. A and D are independent given C. A and D are independent given C and E. A and D are independent given C, E and F. A and E are independent given B and C. A and E are independent given B, C and D. A and E are independent given C. A and E are independent given C and D. B is independent of D. B and D are independent given A. B and D are independent given A and C. B and D are independent given A, C and E. B and D are independent given A, C, E and F. B and D are independent given C. B and D are independent given C and E. B and D are independent given C, E and F. B and E are independent given A and C. B and E are independent given A, C and D. B and E are independent given C. B and E are independent given C and D. C is independent of D. C and D are independent given A. C and D are independent given A and B. C and D are independent given B. C and F are independent given A, B, D and E. C and F are independent given A, B and E. D and F are independent given A, B, C and E. D and F are independent given A, B and E. D and F are independent given A, C and E. D and F are independent given B, C and E. D and F are independent given C and E. 
+  Hypothesis: B directly causes D.
+  
+  ```json
+  {{
+    "hypothesis_answer": false
+  }}
+  
+  Example 3:
+  Premise: Suppose there is a closed system of 6 variables, A, B, C, D, E and F. All the statistical relations among these 6 variables are as follows: A correlates with B. A correlates with C. A correlates with D. A correlates with E. A correlates with F. B correlates with C. B correlates with D. B correlates with E. B correlates with F. C correlates with D. C correlates with E. C correlates with F. D correlates with E. D correlates with F. E correlates with F. However, A and C are independent given B. B and F are independent given A, C and D. B and F are independent given A, C, D and E. E and F are independent given A, B, C and D. E and F are independent given A, C and D. 
+  Hypothesis: A is a cause for F, but not a direct one.
+
+  ```json
+  {{
+    "hypothesis_answer": true
+  }}
+
   Required Output Format:
   After completing your analysis, provide your final answer only for the hypothesis as a boolean value (either true or false) in this exact JSON format:
   
   ```json
   {{
-    "hypothesis_answer": true/false
+    "causal_skeleton": {{
+      "nodes": ["A", "B", "C", ...],
+      "edges": [["A", "B"], ["B", "C"], ...]
+    }},
+    "v_structures": [
+      {{
+        "collider": "Z",
+        "parents": ["X", "Y"],
+        "explanation": "X and Y are independent, but become dependent when conditioning on Z"
+      }}
+    ],
+    "directed_graph": {{
+      "nodes": ["A", "B", "C", ...],
+      "directed_edges": [["A", "B"], ["B", "C"], ...],
+      "undirected_edges": [["D", "E"], ...]
+    }},
+    "orientation_steps": [
+      {{
+        "step": 1,
+        "rule_applied": "v-structure",
+        "edge_oriented": {{"from": "X", "to": "Z"}}
+      }},
+      {{
+        "step": 2,
+        "rule_applied": "R1",
+        "edge_oriented": {{"from": "Z", "to": "Y"}}
+      }}
+    ],
+    "hypothesis_answer": true,
+    "justification": "The hypothesis is true because..."
   }}
   ```
   
   Premise: {premise}
+  Hypothesis: {hypothesis}
+
+reasoning_prompt_apply_hypothesis: |
+  Task: Evaluate whether the given causal hypothesis is true or false based on the directed causal graph.
+  
+  Context:
+  You are given a directed graph representing causal relationships between variables. Your task is to determine whether the specified hypothesis is supported by this graph.
+
+  Required Output Format:
+  Provide your conclusion as a JSON object with a single boolean field:
+
+  ```json
+  {{
+    "hypothesis_answer": true/false
+  }}
+
+  Directed Graph:
+  ```json
+  {{
+    "nodes": {nodes},
+    "directed_edges": {directed_edges},
+  }}
+  ```
   Hypothesis: {hypothesis}
