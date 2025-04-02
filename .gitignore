@@ -8,3 +8,6 @@ snellius
 ToT/logging
 evidence
 fail_experiments/**/*.csv
+
+# Ignore the data files
+**.csv
