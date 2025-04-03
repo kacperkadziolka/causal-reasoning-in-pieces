@@ -97,16 +97,16 @@ def apply_rule4(pdag):
     return changes
 
 
-def apply_meek_rules(skeleton_edges, v_structures):
+def apply_meek_rules(skeleton_edges, v_structures) -> set[tuple[str, str]]:
     """
     Apply Meek rules to orient edges in a causal graph.
 
     Args:
-        skeleton_edges: List of tuples representing undirected edges (a, b)
-        v_structures: List of tuples (a, b, c) where a → b ← c is a v-structure
+        skeleton_edges: Set of tuples representing undirected edges (a, b)
+        v_structures: Set/list of tuples (a, b, c) where a → b ← c is a v-structure
 
     Returns:
-        List of directed edges representing the maximally oriented graph.
+        Set of directed edges representing the maximally oriented graph.
     """
     # Build the original adjacency list (if needed by other rules)
     orig_adj = {}
@@ -144,10 +144,10 @@ def apply_meek_rules(skeleton_edges, v_structures):
         changes |= apply_rule4(pdag)
 
     # Extract directed edges
-    directed_edges = []
+    directed_edges = set()
     for u in pdag:
         for v in pdag[u]:
             if pdag[u][v] == '>':
-                directed_edges.append((u, v))
+                directed_edges.add((u, v))
 
     return directed_edges

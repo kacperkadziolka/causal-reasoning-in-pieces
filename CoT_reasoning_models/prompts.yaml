@@ -252,6 +252,179 @@ reasoning_prompt_meek_v2: |
   }}
   ```
 
+reasoning_prompt_meek_v3: |
+  You are an expert in causal inference with deep knowledge of the PC algorithm’s Meek orientation rules. Your task is to convert a given undirected causal skeleton into a partially directed acyclic graph (PDAG) by orienting as many edges as possible while following these rules:
+
+  **Rules and Constraints:**
+  - **Cycle Avoidance:** Do not create any directed cycles.
+  - **V-Structure Preservation:** Maintain all given v-structures (i.e., collider configurations).
+  - **Independence Consistency:** Ensure all orientations comply with the provided marginal and conditional independence relationships (see "Premise").
+  - **Edge Pool Restriction:** Only orient edges that exist in the provided causal skeleton.
+  - **Conservative Orientation:** If orientation is ambiguous or may conflict with the above rules, leave the edge undirected.
+    
+  **Required Output Format:**
+  After completing your analysis, provide your final answer in this exact JSON format:
+  
+  ```json
+  {{
+    "final_graph": {{
+      "directed_edges": [
+        {{
+          "from": "Node1",
+          "to": "Node2"
+        }},
+        {{
+          "from": "Node2",
+          "to": "Node3"
+        }}
+      ],
+      "undirected_edges": [
+        ["Node3", "Node4"],
+        ["Node5", "Node6"]
+      ]
+    }}
+  }}
+  ```
+  
+  **Inputs:**
+  Premise: {premise}
+  (Contains the relevant marginal and conditional independence information.)
+  
+  V-Structures: {v_structures}
+  (A list of collider patterns that must be preserved.)
+  
+  Casual skeleton:
+  ```json
+  {{
+    "nodes": {nodes},
+    "edges": {edges}
+  }}
+  ```
+
+reasoning_prompt_meek_v4: |
+  You are an expert in causal inference with deep knowledge of the PC algorithm’s Meek orientation rules. Your task is to convert a given undirected causal skeleton into a partially directed acyclic graph (PDAG) by orienting as many edges as possible while following these rules:
+
+  **Rules and Constraints:**
+  - **Cycle Avoidance:** Do not create any directed cycles.
+  - **V-Structure Preservation:** Maintain all given v-structures (i.e., collider configurations).
+  - **Independence Consistency:** Ensure all orientations comply with the provided marginal and conditional independence relationships (see "Premise").
+  - **Edge Pool Restriction:** Only orient edges that exist in the provided causal skeleton.
+  - **Conservative Orientation:** Only assign a direction to an edge if it is uniquely compelled by a v‑structure or through propagation via Meek rules. If the orientation is ambiguous (i.e., both directions are equally supported), leave the edge undirected.
+  - **Final PDAG Requirement:** The final PDAG must include exactly the edges provided in the causal skeleton, with no additional orientations beyond what is compelled by the evidence.
+
+  **Decision Flow:**
+  1. Identify and orient all edges that form the given v‑structures.
+  2. Apply Meek rules to propagate any forced orientations.
+  3. For each remaining edge, determine if its orientation is uniquely dictated by the rules. If not, leave it undirected.
+  
+  **Example:**  
+  If the edge A–B does not appear in any v‑structure and both A → B and B → A would satisfy the constraints, do not orient it; keep it as A–B.
+
+  **Required Output Format:**
+  After completing your analysis, provide your final answer in this exact JSON format:
+  
+  ```json
+  {{
+    "final_graph": {{
+      "directed_edges": [
+        {{
+          "from": "Node1",
+          "to": "Node2"
+        }},
+        {{
+          "from": "Node2",
+          "to": "Node3"
+        }}
+      ],
+      "undirected_edges": [
+        ["Node3", "Node4"],
+        ["Node5", "Node6"]
+      ]
+    }}
+  }}
+  ```
+  
+  **Inputs:**
+  Premise: {premise}
+  (Contains the relevant marginal and conditional independence information.)
+  
+  V-Structures: {v_structures}
+  (A list of collider patterns that must be preserved.)
+  
+  Casual skeleton:
+  ```json
+  {{
+    "nodes": {nodes},
+    "edges": {edges}
+  }}
+  ```
+
+reasoning_prompt_meek_v5: |
+  You are an expert in causal inference with deep knowledge of the PC algorithm's Meek orientation rules. Your task is to convert a given undirected causal skeleton into a partially directed acyclic graph (PDAG) by orienting edges according to these rules:
+
+  **Rules and Constraints:**
+  - **Cycle Avoidance:** Do not create any directed cycles.
+  - **V-Structure Preservation:** Start by orienting all edges that form the given v-structures.
+  - **Edge Pool Restriction:** Only orient edges that exist in the provided causal skeleton.
+  - **Meek Rules Application (Apply in order repeatedly until no changes occur):**
+    - Rule R1: If A→B—C and A and C are not adjacent, orient B—C as B→C
+    - Rule R2: If A→B→C and A—C, orient A—C as A→C
+    - Rule R3: If A—B, A—C, A—D, B→D, C→D, and B and C are not adjacent, orient A—B and A—C as A→B and A→C
+    - Rule R4: If A—B, A→C→D→B, orient A—B as A→B
+  - **Complete Orientation:** Check EVERY possible edge and node configuration that might trigger a Meek rule.
+  - **Multiple Passes Required:** Apply the rules repeatedly until no more edges can be oriented.
+
+  **Important Verification Steps:**
+  1. For EACH undirected edge in the skeleton, explicitly check if any of the Meek rules apply.
+  2. After orienting edges, make a second complete pass to verify no further orientations are possible.
+  3. For any node with multiple incoming/outgoing edges, double-check rule applicability.
+  4. Pay special attention to nodes that are part of v-structures, as they often enable additional orientations.
+
+  **Decision Process:**
+  1. Identify and orient ALL edges in the given v-structures.
+  2. Systematically check each undirected edge against all Meek rules.
+  3. Apply any new orientations and repeat until convergence.
+  4. Verify every possible application of each rule has been considered.
+
+  **Required Output Format:**
+  After completing your analysis, provide your final answer in this exact JSON format:
+
+  ```json
+  {{
+    "final_graph": {{
+      "directed_edges": [
+        {{
+          "from": "Node1",
+          "to": "Node2"
+        }},
+        {{
+          "from": "Node2",
+          "to": "Node3"
+        }}
+      ],
+      "undirected_edges": [
+        ["Node3", "Node4"],
+        ["Node5", "Node6"]
+      ]
+    }}
+  }}
+  ```
+  
+  **Inputs:**
+  Premise: {premise}
+  (Contains the relevant marginal and conditional independence information.)
+  
+  V-Structures: {v_structures}
+  (A list of collider patterns that must be preserved.)
+  
+  Casual skeleton:
+  ```json
+  {{
+    "nodes": {nodes},
+    "edges": {edges}
+  }}
+  ```
+
 reasoning_prompt_single_stage: |
   You are a world-class causal inference expert with extensive experience in statistical methods, causal discovery, and graphical models. Your expertise lies in using algorithms such as the PC algorithm to analyze observed correlations and independence statements. In this role, your goal is to provide rigorous, step-by-step evaluations of causal hypotheses based on the given premises.
   
@@ -362,6 +535,40 @@ reasoning_prompt_single_stage: |
   Hypothesis: {hypothesis}
 
 reasoning_prompt_apply_hypothesis: |
+  You are a specialist in causal discovery algorithms, particularly the Peter-Clark (PC) algorithm, with a proven ability to evaluate complex causal relationships. In this final stage, your task is to assess a specific hypothesis regarding causal relationships between variables. Based on the constructed and oriented graph—derived from correlation statements, independence assertions, v-structures, and the application of Meek rules—determine whether the evidence supports or contradicts the proposed causal hypothesis.
+
+  Task: Evaluate whether the given causal hypothesis is supported by the provided causal graph.
+
+  Premise: {premise}
+
+  Context:
+  You are given a causal graph that represents a Markov equivalence class (a CPDAG) derived from the above premises. This graph includes:
+  - **Directed edges:** These are relationships that are unambiguously oriented.
+  - **Undirected edges:** These represent ambiguous relationships where multiple orientations (across equivalent DAGs) are possible.
+  
+  IMPORTANT: When evaluating the hypothesis, consider only those completions (i.e., fully oriented DAGs) that respect the above premises, including the separation sets. Do not allow any edge orientations that would violate these conditional independence statements (for example, avoid orienting the ambiguous edges as A → B and C → B simultaneously if that contradicts A ⊥ C ∣ B).
+  
+  Your task is to determine if the specified hypothesis holds in every valid DAG within this equivalence class. The hypothesis is considered supported (true) only if it is true in all valid completions; if it holds in some but not all, then the answer should be false.
+  
+  Required Output Format:
+  Provide your conclusion as a JSON object with a single boolean field:
+
+  ```json
+  {{
+    "hypothesis_answer": true/false
+  }}
+
+  Provided Graph:
+  ```json
+  {{
+    "nodes": {nodes},
+    "directed_edges": {directed_edges},
+    "undirected_edges": {undirected_edges}
+  }}
+  ```
+  Hypothesis: {hypothesis}
+
+reasoning_prompt_apply_hypothesis_v2: |
   Task: Evaluate whether the given causal hypothesis is true or false based on the directed causal graph.
   
   Context:
@@ -382,4 +589,4 @@ reasoning_prompt_apply_hypothesis: |
     "directed_edges": {directed_edges},
   }}
   ```
-  Hypothesis: {hypothesis}
+  Hypothesis: {hypothesis}  

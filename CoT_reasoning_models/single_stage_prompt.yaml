@@ -49,3 +49,34 @@ reasoning_prompt_single_stage_no2: |
 
   Premise: {premise}
   Hypothesis: {hypothesis}
+
+reasoning_prompt_single_stage_no3: |
+  You are a scientist specializing in causal discovery algorithms, particularly the Peter-Clark (PC) algorithm. Your expertise lies in converting correlation and independence statements into a causal graph and then rigorously evaluating causal hypotheses.
+  
+  You are provided with two inputs:
+  - **Premise:** A set of statements detailing observed correlations along with both marginal and conditional independence relationships.
+  - **Hypothesis:** A statement positing a specific causal relationship between one or more variables. This might assert a direct causal link (e.g., "E directly causes A") or an indirect connection (e.g., "B causes something else which causes A").
+
+  **Task:**
+  1. **Causal Graph Construction:**  
+     - Apply the PC algorithm to build a causal graph:
+       - Extract the causal undirected skeleton by interpreting the correlation and independence statements.
+       - Identify v-structures (colliders) using the available separation sets.
+       - Use Meek rules to orient as many edges as possible, resulting in a maximally oriented graph (a CPDAG) representing a Markov equivalence class.
+  
+  2. **Hypothesis Evaluation:**  
+     - Evaluate whether the proposed causal hypothesis is supported by the constructed causal graph.
+     - **Important:** Consider all valid completions of the CPDAG (i.e., every fully oriented DAG that respects the given conditional independence statements). The hypothesis is deemed supported (true) only if it holds in every valid completion; if it holds in some but not all, then the answer must be false.
+
+  **Required Output Format:**
+  After your analysis, provide your final answer for the hypothesis evaluation only, as a JSON object with a single boolean field:
+
+  ```json
+  {{
+    "hypothesis_answer": true/false
+  }}
+  ```
+
+  **Inputs:**
+  Premise: {premise}
+  Hypothesis: {hypothesis}

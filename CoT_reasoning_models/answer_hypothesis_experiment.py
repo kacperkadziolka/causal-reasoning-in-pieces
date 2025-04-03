@@ -57,6 +57,14 @@ def run_single_experiment(client: OpenAI, row: pd.Series, debug_flag: bool) -> O
         expected_v_structures = find_v_structures(skeleton_edges=graph_edges, separation_sets=separation_sets)
         expected_directed_edges = apply_meek_rules(skeleton_edges=graph_edges, v_structures=expected_v_structures)
 
+        print(f"\nExpected directed edges:\n{expected_directed_edges}")
+        print(f"\nGraph edges:\n{graph_edges}")
+
+        # Compute the undirected edges
+        # These are all the causal edges from the skeleton that remains undirected
+        undirected_edges = graph_edges - expected_directed_edges
+        print("Undirected edges:", undirected_edges)
+
         if debug_flag:
             print(f"\nPremise:\n{premise}")
             print(f"\nHypothesis:\n{hypothesis}")
@@ -70,10 +78,16 @@ def run_single_experiment(client: OpenAI, row: pd.Series, debug_flag: bool) -> O
         formatted_edges += ",\n    ".join([str(edge) for edge in expected_directed_edges])
         formatted_edges += "\n  ]"
 
+        formatted_edges_v2 = "[\n    "
+        formatted_edges_v2 += ",\n    ".join([str(edge) for edge in undirected_edges])
+        formatted_edges_v2 += "\n  ]"
+
         # Prepare the prompt
         prompt_template = PROMPTS["reasoning_prompt_apply_hypothesis"]
-        prompt = prompt_template.format(nodes=nodes,
+        prompt = prompt_template.format(premise=premise,
+                                        nodes=nodes,
                                         directed_edges=formatted_edges,
+                                        undirected_edges=formatted_edges_v2,
                                         hypothesis=hypothesis)
         print(f"\nInput prompt:\n{prompt}")
 
@@ -114,16 +128,17 @@ def run_single_experiment(client: OpenAI, row: pd.Series, debug_flag: bool) -> O
 def run_multiple_experiments(client: OpenAI, df: DataFrame, num_experiments: int) -> None:
     results = []
     failed_experiments = 0
+    failed_ids = []
 
     # Train set
     # Failed samples: 3060
 
     # Test set
-    # Failed samples: 371, 574
+    # Failed samples: 574, 705
 
     # Option to specify a single row to process (for debugging/testing)
     debug_flag = True
-    debug_index = 371
+    debug_index = 705
     if debug_flag:
         sampled_rows = df.loc[[debug_index]]
         num_samples = len(sampled_rows)
@@ -144,14 +159,20 @@ def run_multiple_experiments(client: OpenAI, df: DataFrame, num_experiments: int
             results.append(result)
         else:
             failed_experiments += 1
+            failed_ids.append(idx)
 
     if results:
         aggregated_metrics = aggregate_metrics_single_prompt(results)
         display_metrics(aggregated_metrics)
 
+    # Print failure information
+    print(f"\nTotal failed experiments: {failed_experiments}")
+    if failed_ids:
+        print(f"Failed experiment IDs: {failed_ids}")
+
 
 def main():
-    NUM_EXPERIMENTS: int = 50
+    NUM_EXPERIMENTS: int = 30
 
     # Retrieve the API key from the .env file
     load_dotenv()

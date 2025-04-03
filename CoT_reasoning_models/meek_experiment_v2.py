@@ -16,6 +16,7 @@ from answer_extractor import extract_edges_incident_format, extract_premise, ext
     extract_directed_edges_literal_format_json
 
 CSV_FIELDS_MEEK: list[str] = [
+    "sample_id",
     "raw_input",
     "raw_label",
     "raw_template",
@@ -105,16 +106,26 @@ def load_yaml(file_path: str) -> dict[str, str]:
 PROMPTS: dict[str, str] = load_yaml("prompts.yaml")
 
 
-def run_single_experiment(client: OpenAI, df: DataFrame, log_file_names: dict) -> Optional[dict]:
-    nodes = ["A", "B", "C", "D", "E"]
+def run_single_experiment(client: OpenAI, row: pd.Series, idx: int, log_file_names: dict) -> Optional[dict]:
+    num_variables: int = row["num_variables"]
+    if num_variables == 2:
+        nodes = ["A", "B"]
+    elif num_variables == 3:
+        nodes = ["A", "B", "C"]
+    elif num_variables == 4:
+        nodes = ["A", "B", "C", "D"]
+    elif num_variables == 5:
+        nodes = ["A", "B", "C", "D", "E"]
+    elif num_variables == 6:
+        nodes = ["A", "B", "C", "D", "E", "F"]
+    else:
+        raise ValueError("Number of variables must between 2 and 6.")
+
     try:
-        # Draw a sample
-        sample = df.sample(n=1)
-        premise = extract_premise(sample["input"].iloc[0])
-        print(f"\nSelected a sample No. {sample.index[0]}.")
+        premise = extract_premise(row["input"])
 
         # Undirected skeleton graph edges
-        sample_answer = sample["expected_answer"].iloc[0]
+        sample_answer = row["expected_answer"]
         graph_edges = extract_edges_incident_format(answer=sample_answer, step=5)
 
         # Extract the expected V-structures
@@ -127,7 +138,7 @@ def run_single_experiment(client: OpenAI, df: DataFrame, log_file_names: dict) -
         formatted_edges += "\n  ]"
 
         # Prepare the prompt
-        prompt_template = PROMPTS["reasoning_prompt_meek_v2"]
+        prompt_template = PROMPTS["reasoning_prompt_meek_v4"]
         prompt = prompt_template.format(premise=premise,
                                         v_structures=expected_v_structures,
                                         nodes=nodes,
@@ -161,9 +172,10 @@ def run_single_experiment(client: OpenAI, df: DataFrame, log_file_names: dict) -
 
         # Log the results
         csv_log_entry = {
-            "raw_input": sample["input"].iloc[0],
-            "raw_label": sample["label"].iloc[0],
-            "raw_template": sample["template"].iloc[0],
+            "sample_id": idx,
+            "raw_input": row["input"],
+            "raw_label": row["label"],
+            "raw_template": row["template"],
             "skeleton_expected_answer": sample_answer,
             "skeleton_edges": graph_edges,
             "v_structures": expected_v_structures,
@@ -198,34 +210,52 @@ def run_multiple_experiments(client: OpenAI, df: DataFrame, num_experiments: int
     """
     results = []
     failed_experiments = 0
+    failed_ids = []
 
-    for _ in tqdm(range(num_experiments), desc="Running Meek Rules Experiments"):
+    debug_flag = False
+    debug_index = 2168
+    if debug_flag:
+        sampled_rows = df.loc[[debug_index]]
+        num_samples = len(sampled_rows)
+        print(f"Processing specific row with index {debug_index}")
+    else:
+        num_samples = min(num_experiments, len(df))
+        sampled_rows = df.sample(n=num_samples, replace=False)
+        print(f"Selected row indices: {list(sampled_rows.index)}")
+
+    for idx, row in tqdm(sampled_rows.iterrows(), total=num_samples, desc="Running Experiments"):
+        print(f"\nProcessing row with index {idx}")
         result = run_single_experiment(
             client=client,
-            df=df,
+            row=row,
+            idx=idx,
             log_file_names=log_file_names
         )
         if result:
             results.append(result)
         else:
             failed_experiments += 1
+            failed_ids.append(idx)
 
     # Aggregate metrics from multiple experiments
     if results:
         aggregated_metrics = aggregate_metrics(results)
         display_metrics(aggregated_metrics)
 
-    print(f"\nTotal failed experiments: {failed_experiments} out of {num_experiments}")
     print(f"Results logged to:")
     print(f"  - Successful experiments: {log_file_names['successful']}")
     print(f"  - Failed experiments: {log_file_names['failed']}")
+
+    print(f"\nTotal failed experiments: {failed_experiments} out of {num_experiments}")
+    if failed_ids:
+        print(f"Failed experiment IDs: {failed_ids}")
 
 
 def main():
     ### CONFIG ###
     TEMPERATURE: int = 1
     DO_SAMPLE: bool = False
-    NUM_EXPERIMENTS: int = 10
+    NUM_EXPERIMENTS: int = 20
     NO_VARIABLES: int = 5
 
     log_files = get_meek_log_filenames(
