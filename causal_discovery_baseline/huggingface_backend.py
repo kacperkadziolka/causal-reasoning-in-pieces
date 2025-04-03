@@ -28,7 +28,7 @@ def process_hf_response(output_obj: dict, experiment: dict) -> bool:
         experiment["attempt_count"] = 1
 
         result = compare_hypothesis_answers(
-            expected_answer=experiment["expected_label"],
+            expected_answer=experiment["label"],
             model_answer=answer_label
         )
         logging.info(f"[Sample {experiment['sampleId']}] Comparison result: {result}")

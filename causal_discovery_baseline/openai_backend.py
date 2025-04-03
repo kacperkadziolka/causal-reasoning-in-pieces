@@ -19,7 +19,7 @@ def run_openai_experiment(client: OpenAI, experiment: dict, max_attempts: int = 
 
         try:
             logging.info(f"[Sample {experiment['sampleId']}] Prompt:\n{experiment['prompt']}")
-            logging.info(f"Ground truth label: {experiment['expected_label']}")
+            logging.info(f"Ground truth label: {experiment['label']}")
 
             completion = client.chat.completions.create(
                 model="o3-mini",
@@ -35,7 +35,7 @@ def run_openai_experiment(client: OpenAI, experiment: dict, max_attempts: int = 
             logging.info(f"Model label: {experiment['model_label']}")
 
             result = compare_hypothesis_answers(
-                expected_answer=experiment["expected_label"],
+                expected_answer=experiment["label"],
                 model_answer=answer_label
             )
             logging.info(f"Comparison result: {result}")
