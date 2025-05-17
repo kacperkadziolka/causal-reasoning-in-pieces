@@ -22,7 +22,7 @@ def parse_arguments() -> argparse.Namespace:
         "--input_file",
         type=str,
         help="Path to the split csv file",
-        default="../data/test_dataset_unbalanced.csv"
+        default="../data/test_dataset.csv"
     )
     parser.add_argument(
         "--debug",

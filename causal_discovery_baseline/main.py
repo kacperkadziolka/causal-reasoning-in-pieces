@@ -3,13 +3,15 @@ import logging
 import os
 from datetime import datetime
 
+import asyncio
 import pandas as pd
 import torch
 from dotenv import load_dotenv
 from huggingface_hub import login
 from openai import OpenAI
-from transformers import pipeline
+from transformers import pipeline, AutoTokenizer
 
+from deepseek_async_backend import run_experiments_deepseek_async
 from huggingface_backend import run_experiments_hf
 from openai_backend import run_experiments_openai
 
@@ -27,21 +29,20 @@ def parse_args() -> argparse.Namespace:
         "--backend",
         type=str,
         default="openai",
-        choices=["openai", "huggingface"],
-        help="Which backend to use: openai or huggingface"
-    )
-    parser.add_argument(
-        "--dataset",
-        type=str,
-        default="normal",
-        choices=["normal", "balanced"],
-        help="Which dataset to use: normal or balanced"
+        choices=["openai", "huggingface", "deepseek"],
+        help="Which backend to use: openai, huggingface, or deepseek"
     )
     parser.add_argument(
         "--num_experiments",
         type=int,
         default=1,
         help="Number of experiments to run"
+    )
+    parser.add_argument(
+        "--input_file",
+        type=str,
+        help="Path to the split csv file",
+        default="../data/test_dataset.csv"
     )
     return parser.parse_args()
 
@@ -58,14 +59,12 @@ def main() -> None:
 
     log_dir = "logs"
     os.makedirs(log_dir, exist_ok=True)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_file = os.path.join(log_dir, f"experiment_logs_{args.backend}_{args.num_experiments}exp_{timestamp}.csv")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+    input_filename = os.path.basename(args.input_file)
+    file_input_name = os.path.splitext(input_filename)[0]
+    log_file = os.path.join(log_dir, f"{args.backend}_{timestamp}_{file_input_name}.csv")
 
-    if args.dataset == "normal":
-        dataset_file_path = "data/test_dataset_unbalanced.csv"
-    else:
-        dataset_file_path = "data/test_dataset_balanced.csv"
-    df = pd.read_csv(dataset_file_path)
+    df = pd.read_csv(args.input_file)
 
     if args.backend == "openai":
         api_key = os.getenv("OPENAI_API_KEY")
@@ -73,7 +72,21 @@ def main() -> None:
             raise ValueError("OPENAI_API_KEY not found in environment variables.")
 
         client = OpenAI(api_key=api_key)
-        run_experiments_openai(client, df, args.num_experiments, log_file)
+        run_experiments_openai(client, df, args.num_experiments, log_file, args.backend)
+
+    elif args.backend == "deepseek":
+        api_key = os.getenv("DEEPSEEK_API_KEY")
+        if not api_key:
+            raise ValueError("DEEPSEEK_API_KEY not found in environment variables.")
+
+        asyncio.run(
+            run_experiments_deepseek_async(
+                df=df,
+                log_file=log_file,
+                api_key=api_key,
+                num_experiments=args.num_experiments
+            )
+        )
 
     elif args.backend == "huggingface":
         hf_token = os.getenv("HF_TOKEN")
@@ -90,10 +103,11 @@ def main() -> None:
                 torch_dtype=torch.bfloat16,
                 device_map="auto",
             )
+            tokenizer = AutoTokenizer.from_pretrained(model_id)
         except Exception as e:
             print(f"Failed to load Hugging Face model: {e}")
             return
-        run_experiments_hf(hf_pipeline, df, args.num_experiments, log_file)
+        run_experiments_hf(hf_pipeline, df, args.num_experiments, log_file, tokenizer)
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@ import logging
 
 from pandas import DataFrame
 from tqdm import tqdm
-from transformers import Pipeline
+from transformers import Pipeline, PreTrainedTokenizer
 
 from answer_extractor import (
     extract_hypothesis_answer,
@@ -17,11 +17,22 @@ BATCH_SIZE = 4
 MAX_NEW_TOKENS = 8192
 
 
-def process_hf_response(output_obj: dict, experiment: dict) -> bool:
+def process_hf_response(output_obj: dict, experiment: dict, tokenizer: PreTrainedTokenizer) -> bool:
     try:
         assistant_response = output_obj[0]["generated_text"][-1]["content"]
         experiment["model_answer"] = assistant_response
         logging.info(f"[Sample {experiment['sampleId']}] Model response:\n{assistant_response}")
+
+        input_tokens = len(tokenizer.encode(experiment["prompt"], add_special_tokens=True))
+        output_tokens = len(tokenizer.encode(assistant_response, add_special_tokens=True))
+        total_tokens = input_tokens + output_tokens
+
+        experiment["token_usage"] = {
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "total_tokens": total_tokens,
+        }
+        logging.info(f"[Sample {experiment['sampleId']}] Token usage: {experiment['token_usage']}")
 
         answer_label = extract_hypothesis_answer(answer=assistant_response)
         experiment["model_label"] = int(answer_label) if answer_label is not None else None
@@ -40,7 +51,8 @@ def process_hf_response(output_obj: dict, experiment: dict) -> bool:
 
 
 def run_experiments_hf(pipeline: Pipeline, df: DataFrame, num_experiments: int, log_file: str,
-                       batch_size: int = BATCH_SIZE, max_new_tokens: int = MAX_NEW_TOKENS) -> None:
+                       tokenizer: PreTrainedTokenizer, batch_size: int = BATCH_SIZE,
+                       max_new_tokens: int = MAX_NEW_TOKENS) -> None:
     experiment_data = [
         prepare_experiment_from_row(row)
         for _, row in df.sample(n=min(num_experiments, len(df)), replace=False).iterrows()
@@ -56,7 +68,8 @@ def run_experiments_hf(pipeline: Pipeline, df: DataFrame, num_experiments: int, 
             outputs = pipeline(
                 batch_messages,
                 max_new_tokens=max_new_tokens,
-                batch_size=batch_size
+                batch_size=batch_size,
+                temperature=0.1,
             )
         except Exception as e:
             logging.error(f"Pipeline error on batch starting at index {i}: {e}", exc_info=True)
@@ -72,6 +85,7 @@ def run_experiments_hf(pipeline: Pipeline, df: DataFrame, num_experiments: int, 
 
     if retry_queue:
         logging.info(f"Retrying {len(retry_queue)} failed experiments in HF backend...")
+        failed_samples = []
 
         for i in tqdm(range(0, len(retry_queue), batch_size), desc="Retrying HF Batches"):
             retry_batch = retry_queue[i:i + batch_size]
@@ -84,13 +98,19 @@ def run_experiments_hf(pipeline: Pipeline, df: DataFrame, num_experiments: int, 
                 )
             except Exception as e:
                 logging.error(f"Pipeline error on retry batch starting at index {i}: {e}", exc_info=True)
+                for exp in retry_batch:
+                    failed_samples.append(exp['sampleId'])
                 continue
             for output_obj, exp in zip(outputs, retry_batch):
-                if process_hf_response(output_obj, exp):
-                    results.append(exp)
+                result = process_hf_response(output_obj, exp, tokenizer)
+                if result:
+                    results.append(result)
                 else:
-                    results.append({"exact_match": False})
+                    failed_samples.append(exp['sampleId'])
                 append_log(log_file, exp)
+
+        if failed_samples:
+            print(f"Completely failed samples: {failed_samples}")
 
     if results:
         aggregated_metrics = aggregate_metrics_single_prompt(results)

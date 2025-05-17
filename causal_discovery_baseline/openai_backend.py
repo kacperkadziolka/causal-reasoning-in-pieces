@@ -13,18 +13,36 @@ from answer_extractor import (
 from utils import prepare_experiment_from_row, append_log
 
 
-def run_openai_experiment(client: OpenAI, experiment: dict, max_attempts: int = 3) -> Tuple[Optional[dict], dict]:
+def run_openai_experiment(client: OpenAI, experiment: dict, backend: str, max_attempts: int = 3) -> Tuple[Optional[dict], dict]:
     for attempt in range(1, max_attempts + 1):
         experiment["attempt_count"] = attempt
 
         try:
-            logging.info(f"[Sample {experiment['sampleId']}] Prompt:\n{experiment['prompt']}")
+            logging.info(f"[Sample {experiment['sample_id']}] Prompt:\n{experiment['prompt']}")
             logging.info(f"Ground truth label: {experiment['label']}")
 
-            completion = client.chat.completions.create(
-                model="o3-mini",
-                messages=[{"role": "user", "content": experiment["prompt"]}]
-            )
+            if backend == "openai":
+                completion = client.chat.completions.create(
+                    model="o3-mini",
+                    messages=[{"role": "user", "content": experiment["prompt"]}]
+                )
+            elif backend == "deepseek":
+                completion = client.chat.completions.create(
+                    model="deepseek-reasoner",
+                    messages=[
+                        {"role": "user", "content": experiment["prompt"]},
+                    ],
+                    stream=False,
+                    temperature=0.1,
+                )
+            else:
+                raise ValueError(f"Unsupported backend: {backend}")
+
+            # Extract and log token usage details
+            usage = completion.usage
+            experiment["token_usage"]["input_tokens"] += usage.prompt_tokens
+            experiment["token_usage"]["output_tokens"] += usage.completion_tokens
+            experiment["token_usage"]["total_tokens"] += usage.total_tokens
 
             model_response = completion.choices[0].message.content
             experiment["model_answer"] = model_response
@@ -42,21 +60,21 @@ def run_openai_experiment(client: OpenAI, experiment: dict, max_attempts: int = 
 
             return result, experiment
         except Exception as e:
-            logging.error(f"[Sample {experiment['sampleId']}] Attempt {attempt} failed: {e}", exc_info=True)
+            logging.error(f"[Sample {experiment['sample_id']}] Attempt {attempt} failed: {e}", exc_info=True)
             if attempt == max_attempts:
                 return None, experiment
 
     return None, experiment
 
 
-def run_experiments_openai(client: OpenAI, df: DataFrame, num_experiments: int, log_file: str) -> None:
+def run_experiments_openai(client: OpenAI, df: DataFrame, num_experiments: int, log_file: str, backend: str = "openai") -> None:
     results = []
     num_samples = min(num_experiments, len(df))
     sampled_rows = df.sample(n=num_samples, replace=False)
 
     for _, row in tqdm(sampled_rows.iterrows(), total=num_samples, desc="Running OpenAI Experiments"):
         experiment = prepare_experiment_from_row(row)
-        result, log_entry = run_openai_experiment(client, experiment)
+        result, log_entry = run_openai_experiment(client, experiment, backend)
         append_log(log_file, log_entry)
 
         if result:

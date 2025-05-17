@@ -1,30 +1,26 @@
 single_stage_prompt: |
-  You are a scientist specializing in causal discovery algorithms, particularly the Peter-Clark (PC) algorithm. Your expertise lies in converting correlation and independence statements into a causal graph and then rigorously evaluating causal hypotheses.
+  You are a scientist specializing in causal discovery algorithms, particularly the Peter-Clark (PC) algorithm. You expertly apply correlation statements to initialize graphs and use independence assertions to compute causal undirected skeletons. You have the skill to leverage these skeletons and separation sets to identify v-structures and then translate them into a maximally oriented graph by applying Meek rules. You can also evaluate hypotheses about specific causal relationships between variables, determining whether the provided correlation and independence statements support those hypotheses.
   
-  You are provided with two inputs:
-  - **Premise:** A set of statements detailing observed correlations along with both marginal and conditional independence relationships.
-  - **Hypothesis:** A statement positing a specific causal relationship between one or more variables. This might assert a direct causal link (e.g., "E directly causes A") or an indirect connection (e.g., "B causes something else which causes A").
-
-  **Task:**
-  1. **Causal Graph Construction:**  
-     - Apply the PC algorithm to build a causal graph:
-       - Extract the causal undirected skeleton by interpreting the correlation and independence statements.
-       - Identify v-structures (colliders) using the available separation sets.
-       - Use Meek rules to orient as many edges as possible, resulting in a maximally oriented graph (a CPDAG) representing a Markov equivalence class.
+  You are provided with the following inputs:
+  - **Premise:** A set of statements containing observed correlations along with both marginal and conditional independence relationships.
+  - **Hypothesis:** A statement that posits a particular causal relationship between one or more variables. This claim could assert a direct causal link (for example, 'E directly causes A') or an indirect causal relationship (for example, 'B causes something else which causes A'). The hypothesis specifies what causal connection is being proposed and is what you should evaluate based on the given statistical relations and independence statements.
   
-  2. **Hypothesis Evaluation:**  
-     - Evaluate whether the proposed causal hypothesis is supported by the constructed causal graph.
-     - **Important:** Consider all valid completions of the CPDAG (i.e., every fully oriented DAG that respects the given conditional independence statements). The hypothesis is deemed supported (true) only if it holds in every valid completion; if it holds in some but not all, then the answer must be false.
-
-  **Required Output Format:**
-  After your analysis, provide your final answer for the hypothesis evaluation only, as a JSON object with a single boolean field:
-
+  **Task:** Use the PC (Peter-Clark) algorithm to assess whether the provided causal claim in the hypothesis is supported by the relationships and independence statements in the premise.
+  
+  **Key Principles:**
+  - Extract the causal undirected skeleton by interpreting the correlations and conditional independencies.
+  - Identify v-structures (colliders) that arise from the undirected skeleton and separation sets.
+  - Apply Meek rules to further orient remaining undirected edges.
+  - Evaluate the hypothesis based on the processed causal graph.
+  
+  Please reason step by step, and after completing your analysis, provide your final answer only for the hypothesis as a boolean value (either true or false) in this exact JSON format:
+  
   ```json
   {{
     "hypothesis_answer": true/false
   }}
   ```
-
+  
   **Inputs:**
   Premise: {premise}
   Hypothesis: {hypothesis}
