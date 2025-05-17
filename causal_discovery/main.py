@@ -6,7 +6,7 @@ from pathlib import Path
 import pandas as pd
 from tqdm import tqdm
 
-from causal_discovery.experiment_logger import ExperimentLogger
+from experiment_logger import ExperimentLogger
 from utils import extract_premise, extract_hypothesis
 from pipeline.pipeline import CausalDiscoveryPipeline, BatchCasualDiscoveryPipeline
 from pipeline.stages import UndirectedSkeletonStage, VStructuresStage, MeekRulesStage, HypothesisEvaluationStage
