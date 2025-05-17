@@ -1,0 +1,164 @@
+undirected_skeleton: |
+  You are a scientist specializing in causal discovery algorithms, particularly the Peter-Clark (PC) algorithm. Your expertise lies in using correlation statements and independence assertions to initialize graphs and compute causal undirected skeletons. In this stage, focus exclusively on analyzing the provided correlation and independence information to accurately construct the underlying undirected graph that represents the relationships among the variables.
+  
+  **Task:** Based on the given Premise, apply the PC (Peter-Clark) algorithm to identify a causal undirected skeleton from the correlations and independence statements.
+
+  **Key Principles:**
+  - Initially, assume all correlated variables are connected
+  - An edge X--Y should be removed if ANY independence statement shows X and Y are independent (marginally or conditionally)
+  - Keep all edges unless contradicted by an explicit independence statement
+  - The final skeleton should reflect all independence relationships in the data
+
+  Your analysis should be thorough but focused on removing edges based on independence statements.
+
+  **Required Output Format:**
+  After completing your analysis, provide your final answer in this exact JSON format:
+
+  ```json
+  {{
+    "nodes": ["list", "of", "nodes"],
+    "edges": [
+      ["Node1", "Node2"],
+      ["Node2", "Node3"]
+    ]
+  }}
+  ```
+
+  **Inputs:**
+  Premise: {premise}
+
+v_structures: |
+  You are an expert in causal discovery, specializing in the Peter-Clark (PC) algorithm. With a deep understanding of undirected skeletons and separation sets, your task in this stage is to identify v-structures. Analyze the given undirected skeleton along with the corresponding separation sets to pinpoint the colliders that indicate potential directional causal relationships among the variables.
+  
+  **Task:** You are given a causal skeleton (an undirected graph produced by the PC algorithm) and a Premise that contains independence statements. Your job is to perform two distinct steps:
+
+  1. **Extraction of Independence Statements:**
+    - **Parse the Premise:** Identify and extract all independence statements.
+    - **Representation:** For each statement that indicates that a pair of variables is independent (optionally given a conditioning set), represent it as an entry in a dictionary. Use a key that is a sorted pair of variables (e.g., "A,C") and set its value as a list of the conditioning variables (if any).
+  2. **Identification of V-Structures (Colliders):**
+    - **Candidate Identification:** Systematically consider every triple of nodes (X,Z,Y) from the skeleton where:
+      - There are edges X−−Z and Y−−Z in the skeleton.
+      - There is no direct edge between X and Y (i.e., they are non-adjacent).
+    - **Verification via Separation Test:**
+      For each candidate triple, check the separation (independence) information:
+      - **Valid V-Structure:** Include [X,Z,Y] only if for the pair (X,Y) (as found in the independence statements) the corresponding separation set does not contain Z.
+      - **Systematic Check:** Ensure that every candidate triple is evaluated using the criteria of non-adjacency, common neighbor, and the separation test to avoid false positives (including a Z that appears in the separation set) and false negatives (omitting any valid candidate).
+
+  **Required Output Format:**
+  After completing your analysis, provide your final answer in this exact JSON format:
+  ```json
+  {{
+    "separation_sets": {{
+      "A,C": ["B"],
+      "A,D": [...],
+      ...
+    }},
+    "v_structures": [
+      ["X", "Z", "Y"],
+      ["X2", "Z2", "Y2"],
+      ...
+    ]
+  }}
+  ```
+
+  **Inputs:**
+  Premise: {premise}
+  Casual skeleton:
+  ```json
+  {{
+    "nodes": {nodes},
+    "edges": {edges}
+  }}
+  ```
+
+meek_rules: |
+  You are an expert in causal inference with deep knowledge of the PC algorithm’s Meek orientation rules. Your task is to convert a given undirected causal skeleton into a partially directed acyclic graph (PDAG) by orienting as many edges as possible while following these rules:
+
+  **Rules and Constraints:**
+  - **Cycle Avoidance:** Do not create any directed cycles.
+  - **V-Structure Preservation:** Maintain all given v-structures (i.e., collider configurations).
+  - **Independence Consistency:** Ensure all orientations comply with the provided marginal and conditional independence relationships (see "Premise").
+  - **Edge Pool Restriction:** Only orient edges that exist in the provided causal skeleton.
+  - **Conservative Orientation:** Only assign a direction to an edge if it is uniquely compelled by a v‑structure or through propagation via Meek rules. If the orientation is ambiguous (i.e., both directions are equally supported), leave the edge undirected.
+  - **Final PDAG Requirement:** The final PDAG must include exactly the edges provided in the causal skeleton, with no additional orientations beyond what is compelled by the evidence.
+
+  **Decision Flow:**
+  1. Identify and orient all edges that form the given v‑structures.
+  2. Apply Meek rules to propagate any forced orientations.
+  3. For each remaining edge, determine if its orientation is uniquely dictated by the rules. If not, leave it undirected.
+  
+  **Example:**  
+  If the edge A–B does not appear in any v‑structure and both A → B and B → A would satisfy the constraints, do not orient it; keep it as A–B.
+
+  **Required Output Format:**
+  After completing your analysis, provide your final answer in this exact JSON format:
+  
+  ```json
+  {{
+    "final_graph": {{
+      "directed_edges": [
+        {{
+          "from": "Node1",
+          "to": "Node2"
+        }},
+        {{
+          "from": "Node2",
+          "to": "Node3"
+        }}
+      ],
+      "undirected_edges": [
+        ["Node3", "Node4"],
+        ["Node5", "Node6"]
+      ]
+    }}
+  }}
+  ```
+  
+  **Inputs:**
+  Premise: {premise}
+  (Contains the relevant marginal and conditional independence information.)
+  
+  V-Structures: {v_structures}
+  (A list of collider patterns that must be preserved.)
+  
+  Casual skeleton:
+  ```json
+  {{
+    "nodes": {nodes},
+    "edges": {edges}
+  }}
+  ```
+
+hypothesis_evaluation: |
+  You are a specialist in causal discovery algorithms, particularly the Peter-Clark (PC) algorithm, with a proven ability to evaluate complex causal relationships. In this final stage, your task is to assess a specific hypothesis regarding causal relationships between variables. Based on the constructed and oriented graph—derived from correlation statements, independence assertions, v-structures, and the application of Meek rules—determine whether the evidence supports or contradicts the proposed causal hypothesis.
+
+  **Task:** Evaluate whether the given causal hypothesis is supported by the provided causal graph.
+
+  **Context:**
+  You are given a causal graph that represents a Markov equivalence class (a CPDAG) derived from the above premises. This graph includes:
+  - **Directed edges:** These are relationships that are unambiguously oriented.
+  - **Undirected edges:** These represent ambiguous relationships where multiple orientations (across equivalent DAGs) are possible.
+  
+  **IMPORTANT:** When evaluating the hypothesis, consider only those completions (i.e., fully oriented DAGs) that respect the above premises, including the separation sets. Do not allow any edge orientations that would violate these conditional independence statements (for example, avoid orienting the ambiguous edges as A → B and C → B simultaneously if that contradicts A ⊥ C ∣ B).
+  
+  Your task is to determine if the specified hypothesis holds in every valid DAG within this equivalence class. The hypothesis is considered supported (true) only if it is true in all valid completions; if it holds in some but not all, then the answer should be false.
+  
+  **Required Output Format:**
+  Provide your conclusion as a JSON object with a single boolean field:
+
+  ```json
+  {{
+    "hypothesis_answer": true/false
+  }}
+
+  **Inputs:**
+  Premise: {premise}
+  Provided Graph:
+  ```json
+  {{
+    "nodes": {nodes},
+    "directed_edges": {directed_edges},
+    "undirected_edges": {undirected_edges}
+  }}
+  ```
+  Hypothesis: {hypothesis}

@@ -1,6 +1,7 @@
+# Python and IDE settings
 venv
-.env
-CoT/data/v0.0.*
-experiments
 .idea
+
+# Project files
+.env
 snellius
