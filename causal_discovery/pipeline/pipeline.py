@@ -6,11 +6,13 @@ from tqdm import tqdm
 
 from .stages import Stage
 from causal_discovery.utils import chunk_list
+from causal_discovery.experiment_logger import ExperimentLogger
 
 
 class CausalDiscoveryPipeline:
-    def __init__(self, stages: list[Stage]):
+    def __init__(self, stages: list[Stage], logger: ExperimentLogger):
         self.stages = stages
+        self.logger = logger
 
     def run(self, input_data: dict[str, Any]) -> dict[str, Any]:
         """
@@ -18,6 +20,7 @@ class CausalDiscoveryPipeline:
         """
         for stage in self.stages:
             input_data = stage.process(input_data)
+        self.logger.append(input_data)
         return input_data
 
     def run_seq_batch(self, input_samples: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -34,6 +37,7 @@ class CausalDiscoveryPipeline:
         """
         for stage in self.stages:
             input_samples = stage.process_batch(input_samples)
+        self.logger.append_many(input_samples)
         return input_samples
 
 
@@ -60,6 +64,9 @@ class BatchCasualDiscoveryPipeline:
         logging.info(f"Processing {len(input_samples)} samples in {len(batches)} batches.")
 
         for batch in tqdm(batches, desc="Processing batches"):
+            batch_ids = [sample["sample_id"] for sample in batch]
+            print(f"\nProcessing batch with sample IDs: {batch_ids}")
+
             retries = 0
             success = False
             while retries < self.max_retries and not success:

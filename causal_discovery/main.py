@@ -1,28 +1,38 @@
 import argparse
-import datetime
 import logging
-import os
 import time
+from pathlib import Path
 
 import pandas as pd
 from tqdm import tqdm
 
+from causal_discovery.experiment_logger import ExperimentLogger
 from utils import extract_premise, extract_hypothesis
 from pipeline.pipeline import CausalDiscoveryPipeline, BatchCasualDiscoveryPipeline
 from pipeline.stages import UndirectedSkeletonStage, VStructuresStage, MeekRulesStage, HypothesisEvaluationStage
-from llm_client import OpenAIClient, BaseLLMClient, HuggingFaceClient
+from llm_client import OpenAIClient, BaseLLMClient, HuggingFaceClient, DeepSeekClient
 
-
-LOGS_DIR = "logs"
+LOGS_DIR: Path = Path("logs")
 
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Run the Causal Discovery Pipeline with configurable backend and mode."
     )
     parser.add_argument(
+        "--input_file",
+        type=str,
+        help="Path to the split csv file",
+        default="../data/test_dataset_unbalanced.csv"
+    )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Enable debug-level logging.",
+    )
+    parser.add_argument(
         "--backend",
         type=str,
-        choices=["openai", "huggingface"],
+        choices=["openai", "huggingface", "deepseek"],
         default="openai",
         help="Choose the LLM backend.",
     )
@@ -34,61 +44,30 @@ def parse_arguments() -> argparse.Namespace:
         help="Run pipeline in sequential or batched mode.",
     )
     parser.add_argument(
-        "--dataset",
-        type=str,
-        choices=["normal", "balanced"],
-        default="normal",
-        help="Which test dataset to run. For example, 'normal' maps to data/test_dataset_unbalanced.csv, and 'balanced' maps to data/test_dataset_balanced.csv.",
-    )
-    parser.add_argument(
         "--num_experiments",
         type=int,
         default=1,
-        help="(Random mode only) Number of experiments to run. If greater than dataset length, the whole test set will be used.",
+        help="Number of experiments to run. If greater than dataset length, the whole test set will be used.",
     )
     parser.add_argument(
-        "--sample_method",
-        type=str,
-        choices=["random", "range"],
-        default="random",
-        help="Choose whether to sample randomly or use a defined range from the test set.",
-    )
-    parser.add_argument(
-        "--start_index",
+        "--batch_size",
         type=int,
-        default=0,
-        help="(Range mode) Start index for the test set (inclusive).",
-    )
-    parser.add_argument(
-        "--end_index",
-        type=int,
-        default=None,
-        help="(Range mode) End index for the test set (exclusive). If not provided, processing will continue to the end.",
+        default=4,
+        help="Batch size for batch processing.",
     )
     return parser.parse_args()
 
 
-def load_dataset(dataset_choice: str) -> pd.DataFrame:
-    if dataset_choice == "balanced":
-        csv_file = "data/test_dataset_balanced.csv"
-    else:
-        csv_file = "data/test_dataset_unbalanced.csv"
+def load_dataset(args: argparse.Namespace) -> pd.DataFrame:
+    csv_file = args.input_file
     df = pd.read_csv(csv_file)
     logging.info(f"Loaded dataset from {csv_file} with {len(df)} rows.")
     return df
 
 
-def prepare_input_samples(df: pd.DataFrame, num_experiments: int, sample_method: str, start_index: int, end_index: int = None) -> list[dict]:
-    if sample_method == "random":
-        num_experiments = min(num_experiments, len(df))
-        sampled_df = df.sample(n=num_experiments, replace=False)
-    elif sample_method == "range":
-        if end_index is None:
-            sampled_df = df.iloc[start_index:]
-        else:
-            sampled_df = df.iloc[start_index:end_index]
-    else:
-        raise ValueError("Invalid sample_method provided.")
+def prepare_input_samples(df: pd.DataFrame, num_experiments: int) -> list[dict]:
+    num_experiments = min(num_experiments, len(df))
+    sampled_df = df.sample(n=num_experiments, replace=False)
 
     input_samples = []
     for idx, row in sampled_df.iterrows():
@@ -109,40 +88,15 @@ def prepare_input_samples(df: pd.DataFrame, num_experiments: int, sample_method:
     return input_samples
 
 
-def create_client(backend: str) -> BaseLLMClient:
+def create_client(backend: str, batch_size: int) -> BaseLLMClient:
     if backend == "openai":
-        client = OpenAIClient(model_id="o3-mini")
+        client = OpenAIClient(model_id="o3-mini", concurrency=batch_size)
+    elif backend == "huggingface":
+        client = HuggingFaceClient(max_new_tokens=8192,  batch_size=batch_size, model_id="deepseek-ai/DeepSeek-R1-Distill-Llama-70B")
     else:
-        client = HuggingFaceClient(max_new_tokens=8192, batch_size=4)
+        client = DeepSeekClient(concurrency=batch_size)
     logging.info(f"Using {backend} backend for the pipeline.")
     return client
-
-
-def ensure_logs_directory_exists() -> None:
-    """Create the logs directory if it doesn't already exist."""
-    if not os.path.exists(LOGS_DIR):
-        os.makedirs(LOGS_DIR)
-        logging.info(f"Created logs directory: {LOGS_DIR}")
-
-
-def log_results(results: list[dict]) -> str:
-    """
-    Write the list of result dictionaries to a uniquely-named CSV log file in the logs directory.
-    Assumes that each result dictionary contains a 'hypothesis_label' that is convertible to int.
-    The column 'hypothesis_label' will be converted to numeric (0 or 1).
-    """
-    ensure_logs_directory_exists()
-
-    # Create a unique filename using a timestamp.
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-    log_file = os.path.join(LOGS_DIR, f"experiment_results_{timestamp}.csv")
-
-    df_log = pd.DataFrame(results)
-    df_log["hypothesis_label"] = df_log["hypothesis_label"].apply(lambda x: int(x))
-
-    df_log.to_csv(log_file, index=False)
-    logging.info(f"Logged results to {log_file}")
-    return log_file
 
 
 def post_process_logs(log_file: str) -> None:
@@ -182,15 +136,17 @@ def post_process_logs(log_file: str) -> None:
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
     args = parse_arguments()
+    log_level = logging.DEBUG if args.debug else logging.INFO
+    logging.basicConfig(level=log_level, format="%(asctime)s - %(levelname)s - %(message)s")
 
     # Load dataset and prepare input samples.
-    df = load_dataset(args.dataset)
-    input_samples = prepare_input_samples(df, args.num_experiments, args.sample_method, args.start_index, args.end_index)
+    df = load_dataset(args)
+    input_samples = prepare_input_samples(df, args.num_experiments)
 
     # Create the LLM client based on backend choice.
-    client = create_client(args.backend)
+    client = create_client(args.backend, args.batch_size)
+    # tokenizer = AutoTokenizer.from_pretrained("deepseek-ai/DeepSeek-R1-Distill-Llama-70B")
 
     # Prepare the pipeline
     skeleton_stage = UndirectedSkeletonStage(client=client)
@@ -198,8 +154,11 @@ def main() -> None:
     meek_rules_stage = MeekRulesStage(client=client)
     hypothesis_evaluation_stage = HypothesisEvaluationStage(client=client)
 
+    job_id = Path(args.input_file).stem
+    logger = ExperimentLogger(LOGS_DIR, job_id)
     pipeline: CausalDiscoveryPipeline = CausalDiscoveryPipeline(
-        stages=[skeleton_stage, v_structures_stage, meek_rules_stage, hypothesis_evaluation_stage]
+        stages=[skeleton_stage, v_structures_stage, meek_rules_stage, hypothesis_evaluation_stage],
+        logger=logger,
     )
 
     results = []
@@ -208,7 +167,7 @@ def main() -> None:
 
     if args.mode == "batched":
         logging.info("Running pipeline in batched mode.")
-        batch_pipeline = BatchCasualDiscoveryPipeline(pipeline=pipeline)
+        batch_pipeline = BatchCasualDiscoveryPipeline(pipeline=pipeline, batch_size=args.batch_size)
         results, failed_ids = batch_pipeline.run_batch(input_samples)
     else:
         logging.info("Running pipeline in sequential mode.")
@@ -223,19 +182,8 @@ def main() -> None:
     end_time = time.time()
     logging.info(f"Total execution time: {end_time - start_time:.2f} seconds")
 
-    # Extend each result with additional sample metadata.
-    for sample, res in zip(input_samples, results):
-        res["sample_id"] = sample.get("sample_id")
-        res["sample_input"] = sample.get("sample_input")
-        res["sample_label"] = sample.get("sample_label")
-        res["sample_num_variables"] = sample.get("sample_num_variables")
-        res["sample_template"] = sample.get("sample_template")
-
-    # Log results to CSV file.
-    log_file = log_results(results)
-
     # Run results post-processing.
-    post_process_logs(log_file)
+    post_process_logs(str(logger.log_file))
 
     if failed_ids:
         logging.info(f"Total failed experiments after max retries: {len(failed_ids)}")

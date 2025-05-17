@@ -248,6 +248,76 @@ def extract_directed_edges_literal_format_json(answer: str) -> list:
         raise RuntimeError(f"Failed to extract directed edges: {e}")
 
 
+def extract_undirected_edges_literal_format_json(answer: str) -> list:
+    """
+    Extract the undirected edges from the provided LLM answer string using the expected JSON format.
+
+    Expected JSON format:
+    {
+      "final_graph": {
+        "directed_edges": [
+          { "from": "Node1", "to": "Node2" },
+          { "from": "Node2", "to": "Node3" }
+        ],
+        "undirected_edges": [
+          ["Node3", "Node4"],
+          ["Node5", "Node6"]
+        ]
+      }
+    }
+
+    :param answer: The answer returned by the LLM API.
+    :return: A list of undirected edges (tuples representing an undirected connection) extracted from the answer.
+    """
+    try:
+        # First approach: Find JSON block delimited by triple backticks.
+        json_match = re.search(r'```(?:json)?\s*({.*?})\s*```', answer, re.DOTALL)
+        if json_match:
+            json_str = json_match.group(1)
+            data = json.loads(json_str)
+            if "final_graph" in data and "undirected_edges" in data["final_graph"]:
+                if not data["final_graph"]["undirected_edges"]:
+                    return []
+                undirected_edges = []
+                for edge in data["final_graph"]["undirected_edges"]:
+                    if isinstance(edge, list) and len(edge) == 2:
+                        undirected_edges.append((edge[0], edge[1]))
+                return undirected_edges
+
+        # Second approach: Search for any JSON objects within the answer.
+        json_blocks = re.findall(r'{[^{}]*(?:{[^{}]*}[^{}]*)*}', answer)
+        for json_str in json_blocks:
+            try:
+                data = json.loads(json_str)
+                if "final_graph" in data and "undirected_edges" in data["final_graph"]:
+                    if not data["final_graph"]["undirected_edges"]:
+                        return []
+                    undirected_edges = []
+                    for edge in data["final_graph"]["undirected_edges"]:
+                        if isinstance(edge, list) and len(edge) == 2:
+                            undirected_edges.append((edge[0], edge[1]))
+                    return undirected_edges
+            except json.JSONDecodeError:
+                continue
+
+        # Third approach: Look for undirected_edges in text format from the final_graph section.
+        edges_pattern = r'"undirected_edges"\s*:\s*\[(.*?)\]'
+        edges_match = re.search(edges_pattern, answer, re.IGNORECASE | re.DOTALL)
+        if edges_match:
+            content = edges_match.group(1).strip()
+            if not content:
+                return []
+            edge_pattern = r'\[\s*"([^"]+)"\s*,\s*"([^"]+)"\s*\]'
+            undirected_edges = []
+            for match in re.finditer(edge_pattern, content):
+                undirected_edges.append((match.group(1), match.group(2)))
+            return undirected_edges
+
+        raise ValueError("No undirected edges found in the answer.")
+    except Exception as e:
+        raise RuntimeError(f"Failed to extract undirected edges: {e}")
+
+
 def extract_hypothesis_answer(answer: str) -> bool:
     """
     Extract the hypothesis answer (True/False) from the provided LLM answer string.
