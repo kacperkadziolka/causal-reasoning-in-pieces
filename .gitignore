@@ -1,13 +1,7 @@
+# Python and IDE settings
 venv
-.env
-CoT/data/v0.0.*
-CoT_reasoning_models/data/*
-experiments
 .idea
-snellius
-ToT/logging
-evidence
-fail_experiments/**/*.csv
 
-# Ignore the data files
-**.csv
+# Project files
+.env
+snellius
