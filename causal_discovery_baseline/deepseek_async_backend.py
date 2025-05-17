@@ -2,6 +2,7 @@ import logging
 from typing import Optional
 
 import asyncio
+from tqdm.asyncio import tqdm_asyncio
 from pandas import DataFrame
 from openai import AsyncOpenAI
 
@@ -14,7 +15,7 @@ from answer_extractor import (
 from utils import prepare_experiment_from_row, append_log
 
 
-_CONCURRENCY: int = 40
+_CONCURRENCY: int = 200
 
 async def _run_one(
     client: AsyncOpenAI,
@@ -25,7 +26,7 @@ async def _run_one(
         experiment["attempt_count"] = attempt
 
         try:
-            logging.info(f"[Sample {experiment['sampleId']}] Prompt:\n{experiment['prompt']}")
+            logging.info(f"[Sample {experiment['sample_id']}] Prompt:\n{experiment['prompt']}")
             resp = await client.chat.completions.create(
                 model="deepseek-reasoner",
                 messages=[{"role": "user", "content": experiment["prompt"]}],
@@ -35,12 +36,11 @@ async def _run_one(
 
             # pull out usage & content
             usage = resp.usage
-            experiment.update({
-                "prompt_tokens": usage.prompt_tokens,
-                "completion_tokens": usage.completion_tokens,
-                "total_tokens": usage.total_tokens,
-                "model_answer": resp.choices[0].message.content,
-            })
+            experiment["token_usage"]["input_tokens"] += usage.prompt_tokens
+            experiment["token_usage"]["output_tokens"] += usage.completion_tokens
+            experiment["token_usage"]["total_tokens"] += usage.total_tokens
+            experiment["model_answer"] = resp.choices[0].message.content
+
             logging.info(f"Model response:\n{experiment['model_answer']}")
 
             # extract & compare
@@ -54,7 +54,7 @@ async def _run_one(
 
             return result, experiment
         except Exception as e:
-            logging.error(f"[Sample {experiment['sampleId']}] Attempt {attempt} failed: {e}", exc_info=True)
+            logging.error(f"[Sample {experiment['sample_id']}] Attempt {attempt} failed: {e}", exc_info=True)
             if attempt == max_attempts:
                 return None, experiment
 
@@ -84,7 +84,7 @@ async def run_experiments_deepseek_async(
     for exp in experiments:
         tasks.append(asyncio.create_task(sem_task(exp)))
 
-    results = await asyncio.gather(*tasks)
+    results = await tqdm_asyncio.gather(*tasks, desc="Processing experiments")
 
     # filter out failures (None)
     successes = [r for r in results if r is not None]
@@ -92,4 +92,4 @@ async def run_experiments_deepseek_async(
         metrics = aggregate_metrics_single_prompt(successes)
         display_metrics(metrics)
 
-    logging.info(f"DeepSeek async done.  Total: {len(experiments)}, Succeeded: {len(successes)}")
+    logging.info(f"DeepSeek async done. Total: {len(experiments)}, Succeeded: {len(successes)}")
