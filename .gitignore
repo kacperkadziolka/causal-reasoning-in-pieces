@@ -5,3 +5,8 @@ venv
 # Project files
 .env
 snellius
+
+**.pyc
+data
+thesis
+v2
