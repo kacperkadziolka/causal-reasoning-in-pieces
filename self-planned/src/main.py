@@ -1,9 +1,10 @@
 import asyncio
+import json
 from typing import Any, Optional
 from dotenv import load_dotenv
 import pandas as pd
 import random
-from planner import create_planner
+from planner import create_planner, is_schema_too_generic, refine_schema
 from executor import run_plan
 
 load_dotenv()
@@ -49,26 +50,72 @@ The PC algorithm follows these steps:
 
 You must create stages that reconstruct the FULL causal graph, needed for accurate causal inference.
 
-Input data:
-{sample['input']}
-
-Inputs available in context: 'input'.
+Input available in context: 'input' (contains premise with variables, correlations, conditional independencies, and hypothesis).
 Final answer should be True or False.
 """
 
-    print("Generating plan...")
+    print("📝 TASK DESCRIPTION SENT TO PLANNER:")
+    print("-" * 80)
+    print(task_description)
+    print("-" * 80)
+
+    print("\n⏳ Generating plan...")
     result = await planner.run(task_description)
     plan = result.output
 
-    print(f"✓ Plan generated with {len(plan.stages)} stages")
-    print(f"Final key: {plan.final_key}")
+    print(f"\n✅ Plan generated successfully!")
+    print(f"📊 Number of stages: {len(plan.stages)}")
+    print(f"🔑 Final key: {plan.final_key}")
 
-    print("\n=== GENERATED STAGES ===")
+    # Validate and refine schemas
+    print(f"\n🔍 === SCHEMA VALIDATION & REFINEMENT ===")
+    refined_stages = []
+
     for i, stage in enumerate(plan.stages, 1):
-        print(f"\nStage {i}: {stage.id}")
-        print(f"  Reads: {stage.reads}")
-        print(f"  Writes: {stage.writes}")
-        print(f"  Prompt: {stage.prompt_template}")
+        print(f"\n🔢 Checking Stage {i}: {stage.id}")
+
+        if is_schema_too_generic(stage.output_schema):
+            print(f"  ⚠️  Schema is too generic: {stage.output_schema}")
+            print(f"  🔄 Refining schema...")
+
+            try:
+                refined_schema = await refine_schema(stage.id, stage.writes, stage.prompt_template)
+                stage.output_schema = refined_schema
+                print(f"  ✅ Refined schema: {json.dumps(refined_schema, indent=2)}")
+            except Exception as e:
+                print(f"  ❌ Failed to refine schema: {e}")
+                print(f"  📝 Using fallback schema")
+        else:
+            print(f"  ✅ Schema looks good: {stage.output_schema}")
+
+        refined_stages.append(stage)
+
+    # Update plan with refined stages
+    plan.stages = refined_stages
+    print(f"\n🎉 Schema validation complete!")
+
+    print(f"\n📋 === DETAILED PLAN BREAKDOWN ===")
+    for i, stage in enumerate(plan.stages, 1):
+        print(f"\n🔢 STAGE {i}: {stage.id}")
+        print(f"  📥 Reads from context: {stage.reads}")
+        print(f"  📤 Writes to context: {stage.writes}")
+        print(f"  📝 Prompt template: {stage.prompt_template}")
+        print(f"  🏗️  Output schema: {json.dumps(stage.output_schema, indent=4)}")
+
+    print(f"\n🌊 === CONTEXT FLOW ANALYSIS ===")
+    all_keys = set(["input"])  # Start with initial context
+    print(f"🏁 Initial context: {list(all_keys)}")
+
+    for i, stage in enumerate(plan.stages, 1):
+        print(f"\n🔢 After stage {i} ({stage.id}):")
+        for key in stage.writes:
+            all_keys.add(key)
+        print(f"  📋 Available keys: {sorted(list(all_keys))}")
+
+        # Check if this stage can read what it needs
+        missing_reads = set(stage.reads) - all_keys
+        if missing_reads:
+            print(f"  ⚠️  WARNING: Stage {i} tries to read non-existent keys: {missing_reads}")
 
     return plan.model_dump()
 
