@@ -26,7 +26,6 @@ Do not include explanations, markdown, or additional text - only the raw JSON.
 
 
 async def run_stage(stage: Stage, context: Dict[str, Any]) -> Dict[str, Any]:
-    # Create executor
     executor = create_executor()
 
     # Get the data this stage needs to read
@@ -41,8 +40,8 @@ async def run_stage(stage: Stage, context: Dict[str, Any]) -> Dict[str, Any]:
     # Add schema information to guide the output
     prompt_with_schema = f"{rendered_prompt}\n\nOutput JSON Schema:\n{stage.output_schema}"
 
-    print(f"  Running stage: {stage.id}")
-    print(f"  Prompt: {rendered_prompt}")
+    print(f"Running stage: {stage.id}")
+    print(f"Prompt: {rendered_prompt}")
 
     # Execute the stage
     result = await executor.run(prompt_with_schema)
