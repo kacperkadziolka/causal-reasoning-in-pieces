@@ -54,6 +54,15 @@ Input available in context: 'input' (contains premise with variables, correlatio
 Final answer should be True or False.
 """
 
+#     task_description = """
+# Task: Apply the PC algorithm to determine if the hypothesis is True or False.
+
+# The PC algorithm is a causal discovery method that constructs causal graphs from observational data using correlations and conditional independence relationships.
+
+# Input available in context: 'input' (contains premise with variables, correlations, conditional independencies, and hypothesis).
+# Final answer should be True or False.
+# """
+
     print("📝 TASK DESCRIPTION SENT TO PLANNER:")
     print("-" * 80)
     print(task_description)
