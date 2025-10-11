@@ -111,7 +111,7 @@ Contract:
 """
 
     planner = Agent(
-        "openai:gpt-4o-mini",
+        "openai:o3-mini",
         output_type=Plan,
         system_prompt=system_prompt
     )

@@ -17,7 +17,7 @@ Do not include explanations, markdown, or additional text - only the raw JSON.
 """
 
     executor = Agent(
-        "openai:gpt-4o-mini",
+        "openai:o3-mini",
         output_type=str,
         system_prompt=system_prompt
     )
