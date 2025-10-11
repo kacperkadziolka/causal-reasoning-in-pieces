@@ -1,5 +1,5 @@
 from pydantic_ai import Agent
-from .models import Plan
+from models import Plan
 from typing import Dict, Any
 
 

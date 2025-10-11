@@ -7,7 +7,7 @@ from src.experiment import ExperimentRunner
 
 async def main():
     parser = argparse.ArgumentParser(description="Run self-planned PC algorithm experiments")
-    parser.add_argument("--samples", "-n", type=int, default=10,
+    parser.add_argument("--samples", "-n", type=int, default=30,
                        help="Number of samples to test (default: 10)")
     parser.add_argument("--seed", "-s", type=int, default=None,
                        help="Random seed for reproducibility")

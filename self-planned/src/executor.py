@@ -2,7 +2,7 @@ import ast
 import json
 from typing import Dict, Any
 from pydantic_ai import Agent
-from .models import Stage, Plan
+from models import Stage, Plan
 
 
 def create_executor() -> Agent[None, str]:

@@ -55,9 +55,13 @@ Final answer should be True or False.
 """
 
 #     task_description = """
-# Task: Apply the PC algorithm to determine if the hypothesis is True or False.
+# Task: Given a natural-language input that contains a Premise and a Hypothesis, decide whether the Hypothesis is True or False under the Peter-Clark (PC) algorithm.
 
-# The PC algorithm is a causal discovery method that constructs causal graphs from observational data using correlations and conditional independence relationships.
+# - PC is a constraint-based causal discovery method that infers a causal equivalence class (CPDAG) from observational (in)dependence information.
+# - Before deciding, reconstruct a global causal structure over all variables mentioned in the Premise; do NOT rely on pairwise or local checks.
+# - Return True only if the claim holds in every DAG in the Markov equivalence class implied by the Premise; otherwise return False.
+
+# Your plan must mirror the canonical PC algorithm. Reconstruct a global causal structure over all variables before deciding. Do not base the decision on a single pair or local cues. If your plan deviates from PC semantics, it is invalid.
 
 # Input available in context: 'input' (contains premise with variables, correlations, conditional independencies, and hypothesis).
 # Final answer should be True or False.
