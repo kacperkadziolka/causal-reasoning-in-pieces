@@ -60,7 +60,7 @@ CRITICAL OUTPUT FORMAT: The final stage must output ONLY a boolean value (true o
     result = await planner.run(task_description)
     plan = result.output
 
-    print(f"\n✅ Plan generated successfully!")
+    print("\n✅ Plan generated successfully!")
     print(f"📊 Number of stages: {len(plan.stages)}")
     print(f"🔑 Final key: {plan.final_key}")
 
@@ -102,12 +102,12 @@ CRITICAL OUTPUT FORMAT: The final stage must output ONLY a boolean value (true o
         print(f"  Stage {i}: {sorted(all_keys)}")
 
     # Show detailed stage breakdown
-    print(f"\n📝 Stage Details:")
+    print("\n📝 Stage Details:")
     for i, stage in enumerate(plan.stages, 1):
         print(f"  {i}. {stage.id}")
         print(f"     Reads: {stage.reads}")
         print(f"     Writes: {stage.writes}")
-        print(f"     Prompt:")
+        print("     Prompt:")
         # Show full prompt with proper indentation
         for line in stage.prompt_template.split("\n"):
             print(f"       {line}")
