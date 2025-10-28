@@ -25,6 +25,7 @@ class ExperimentConfig:
     save_individual_results: bool = True
     save_summary: bool = True
     random_seed: Optional[int] = None
+    max_concurrent: int = 10  # Maximum concurrent experiments
 
 
 @dataclass
@@ -182,15 +183,24 @@ class BatchExperimentRunner:
         self.start_time = time.time()
         start_datetime = datetime.now()
 
-        print(f"\n⏳ Running {batch_size} experiments...")
+        print(f"\n⏳ Running {batch_size} experiments concurrently (max {self.config.max_concurrent} at once)...")
         print("=" * 80)
 
-        # Run experiments
-        self.results = []
-        for i, sample_idx in enumerate(sample_indices, 1):
-            result = await self.run_single_experiment(sample_idx)
-            self.results.append(result)
-            self.print_progress(i, batch_size, result)
+        # Run experiments concurrently with semaphore for rate limiting
+        semaphore = asyncio.Semaphore(self.config.max_concurrent)
+        completed_count = 0
+
+        async def run_with_semaphore(sample_idx: int) -> ExperimentResult:
+            nonlocal completed_count
+            async with semaphore:
+                result = await self.run_single_experiment(sample_idx)
+                completed_count += 1
+                self.print_progress(completed_count, batch_size, result)
+                return result
+
+        # Create all tasks and run them concurrently
+        tasks = [run_with_semaphore(sample_idx) for sample_idx in sample_indices]
+        self.results = await asyncio.gather(*tasks)
 
         # Calculate final metrics
         end_time = time.time()

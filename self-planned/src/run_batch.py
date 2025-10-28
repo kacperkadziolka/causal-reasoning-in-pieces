@@ -11,7 +11,7 @@ def parse_args():
     parser.add_argument(
         "--batch-size", "-b",
         type=int,
-        default=1,
+        default=2,
         help="Number of experiments to run (max: dataset size)"
     )
 
@@ -32,6 +32,13 @@ def parse_args():
         "--seed", "-s",
         type=int,
         help="Random seed for reproducible sampling"
+    )
+
+    parser.add_argument(
+        "--max-concurrent", "-c",
+        type=int,
+        default=10,
+        help="Maximum number of concurrent experiments [default: 10]"
     )
 
     parser.add_argument(
@@ -73,12 +80,14 @@ async def main():
         output_dir=args.output_dir,
         experiment_name=args.name,
         random_seed=args.seed,
+        max_concurrent=args.max_concurrent,
         save_individual_results=not args.no_individual,
         save_summary=not args.no_summary
     )
 
     print("🔧 Experiment Configuration:")
     print(f"   Batch size: {config.batch_size}")
+    print(f"   Max concurrent: {config.max_concurrent}")
     print(f"   Dataset: {config.dataset_path}")
     print(f"   Output dir: {config.output_dir}")
     print(f"   Random seed: {config.random_seed}")
