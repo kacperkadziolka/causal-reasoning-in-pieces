@@ -26,7 +26,7 @@ def fetch_sample(csv_path: str) -> pd.Series:
     print("=" * 50)
 
     return sample
-   
+
 
 async def run_planner(sample: pd.Series) -> Optional[dict[str, Any]]:
     """Run the planner on a sample and return the generated plan."""
@@ -50,7 +50,6 @@ CRITICAL OUTPUT FORMAT: The final stage must output ONLY a boolean value (true o
 
     # Create algorithm-aware planner
     planner = await create_planner(task_description)
-
 
     print("📝 TASK DESCRIPTION SENT TO PLANNER:")
     print("-" * 80)
@@ -76,7 +75,9 @@ CRITICAL OUTPUT FORMAT: The final stage must output ONLY a boolean value (true o
     for stage in plan.stages:
         if is_schema_too_generic(stage.output_schema):
             try:
-                stage.output_schema = await refine_schema(stage.id, stage.writes, stage.prompt_template)
+                stage.output_schema = await refine_schema(
+                    stage.id, stage.writes, stage.prompt_template
+                )
                 refined_count += 1
                 print("✅", end="")
             except Exception:
@@ -108,7 +109,7 @@ CRITICAL OUTPUT FORMAT: The final stage must output ONLY a boolean value (true o
         print(f"     Writes: {stage.writes}")
         print(f"     Prompt:")
         # Show full prompt with proper indentation
-        for line in stage.prompt_template.split('\n'):
+        for line in stage.prompt_template.split("\n"):
             print(f"       {line}")
         print()
 
@@ -125,11 +126,12 @@ async def run_complete_workflow(sample: pd.Series) -> Optional[dict[str, Any]]:
 
     # Convert back to Plan object (since run_planner returns dict)
     from models import Plan
+
     plan = Plan.model_validate(plan_dict)
 
     # Step 2: Execute plan
-    print("\n" + "="*50)
-    initial_context = {"input": sample['input']}
+    print("\n" + "=" * 50)
+    initial_context = {"input": sample["input"]}
     final_context = await run_plan(plan, initial_context)
 
     # Step 3: Extract final result
@@ -143,7 +145,7 @@ async def run_complete_workflow(sample: pd.Series) -> Optional[dict[str, Any]]:
         "plan": plan_dict,
         "final_context": final_context,
         "final_result": final_result,
-        "expected": sample.get('label', 'Unknown')
+        "expected": sample.get("label", "Unknown"),
     }
 
 

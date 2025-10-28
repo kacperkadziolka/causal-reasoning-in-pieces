@@ -20,7 +20,9 @@ def is_schema_too_generic(schema: Dict[str, Any]) -> bool:
     return False
 
 
-async def refine_schema(stage_id: str, writes: list[str], prompt_template: str) -> Dict[str, Any]:
+async def refine_schema(
+    stage_id: str, writes: list[str], prompt_template: str
+) -> Dict[str, Any]:
     """Refine a generic schema to be more specific"""
 
     schema_refiner = Agent(
@@ -52,7 +54,7 @@ Example: If writes = ["graph_data"], the schema should be:
 }
 
 Return ONLY valid JSON Schema as a JSON object, no markdown or explanations.
-"""
+""",
     )
 
     refinement_prompt = f"""
@@ -74,7 +76,7 @@ The schema must match what the executor expects based on the "writes" keys.
         return {
             "type": "object",
             "properties": {write_key: {"type": "object"} for write_key in writes},
-            "required": writes
+            "required": writes,
         }
 
 
@@ -96,7 +98,7 @@ Rules:
 - If no specific algorithm is mentioned, return "none"
 
 Return just the algorithm name, nothing else.
-"""
+""",
     )
 
     result = await algorithm_detector.run(task_description)
@@ -122,7 +124,7 @@ CANONICAL STAGES:
 KEY MATHEMATICAL OBJECTS: [list the main data structures/objects manipulated]
 
 Be precise and focus on the algorithmic structure, not explanations or applications.
-"""
+""",
     )
 
     knowledge_prompt = f"Describe the canonical stages of {algorithm_name}"
@@ -162,11 +164,7 @@ Contract:
 - Keep prompts short. All stage outputs must be STRICT JSON (no extra text).
 """
 
-    return Agent(
-        "openai:o3-mini",
-        output_type=Plan,
-        system_prompt=system_prompt
-    )
+    return Agent("openai:o3-mini", output_type=Plan, system_prompt=system_prompt)
 
 
 def create_algorithm_informed_planner(algorithm_knowledge: str) -> Agent[None, Plan]:
@@ -213,11 +211,7 @@ Contract:
 - All stage outputs must be STRICT JSON (no extra text).
 """
 
-    return Agent(
-        "openai:o3-mini",
-        output_type=Plan,
-        system_prompt=system_prompt
-    )
+    return Agent("openai:o3-mini", output_type=Plan, system_prompt=system_prompt)
 
 
 async def create_planner(task_description: Optional[str] = None) -> Agent[None, Plan]:

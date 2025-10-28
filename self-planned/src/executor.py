@@ -16,11 +16,7 @@ Focus only on the specific task described in the prompt.
 Do not include explanations, markdown, or additional text - only the raw JSON.
 """
 
-    executor = Agent(
-        "openai:o3-mini",
-        output_type=str,
-        system_prompt=system_prompt
-    )
+    executor = Agent("openai:o3-mini", output_type=str, system_prompt=system_prompt)
 
     return executor
 
@@ -44,6 +40,7 @@ async def run_stage(stage: Stage, context: Dict[str, Any]) -> Dict[str, Any]:
 
         # Find all placeholders that should be replaced (those that match keys in read_data)
         import re
+
         actual_placeholders = set(read_data.keys())
 
         # Replace all {text} that are NOT actual placeholders with {{text}}
@@ -52,13 +49,17 @@ async def run_stage(stage: Stage, context: Dict[str, Any]) -> Dict[str, Any]:
             if placeholder in actual_placeholders:
                 return match.group(0)  # Keep as {placeholder}
             else:
-                return '{{' + placeholder + '}}'  # Escape as {{placeholder}}
+                return "{{" + placeholder + "}}"  # Escape as {{placeholder}}
 
-        escaped_template = re.sub(r'\{([^}]+)\}', escape_non_placeholders, escaped_template)
+        escaped_template = re.sub(
+            r"\{([^}]+)\}", escape_non_placeholders, escaped_template
+        )
 
         rendered_prompt = escaped_template.format(**read_data)
     except KeyError as e:
-        raise ValueError(f"Stage '{stage.id}' tried to read key {e} that doesn't exist in context")
+        raise ValueError(
+            f"Stage '{stage.id}' tried to read key {e} that doesn't exist in context"
+        )
 
     # Add schema information to guide the output
     prompt_with_schema = f"{rendered_prompt}\n\nOutput JSON Schema:\n{json.dumps(stage.output_schema, indent=2)}"
@@ -83,7 +84,9 @@ async def run_stage(stage: Stage, context: Dict[str, Any]) -> Dict[str, Any]:
     missing_keys = [key for key in stage.writes if key not in stage_output]
     if missing_keys:
         print(f"❌ Missing: {missing_keys}")
-        raise ValueError(f"Stage '{stage.id}' did not produce required output keys: {missing_keys}")
+        raise ValueError(
+            f"Stage '{stage.id}' did not produce required output keys: {missing_keys}"
+        )
 
     # Calculate execution time and output metrics
     execution_time = time.time() - start_time
@@ -101,7 +104,9 @@ async def run_stage(stage: Stage, context: Dict[str, Any]) -> Dict[str, Any]:
                 preview_keys = list(value.keys())[:2]
                 if len(value) > 2:
                     preview_keys.append("...")
-                output_preview.append(f"{key}:[{', '.join(str(k) for k in preview_keys)}]")
+                output_preview.append(
+                    f"{key}:[{', '.join(str(k) for k in preview_keys)}]"
+                )
         elif isinstance(value, list):
             output_info.append(f"{key}={len(value)} items")
             # Show first few items for lists
@@ -161,7 +166,7 @@ async def run_plan(plan: Plan, initial_context: Dict[str, Any]) -> Dict[str, Any
             raise
 
     total_time = time.time() - plan_start_time
-    final_result = context.get(plan.final_key, '<<NOT_FOUND>>')
+    final_result = context.get(plan.final_key, "<<NOT_FOUND>>")
     print(f"\n🎯 Completed in {total_time:.1f}s → {final_result}")
 
     return context
