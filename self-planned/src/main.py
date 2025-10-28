@@ -1,5 +1,4 @@
 import asyncio
-import json
 from typing import Any, Optional
 from dotenv import load_dotenv
 import pandas as pd
@@ -27,45 +26,31 @@ def fetch_sample(csv_path: str) -> pd.Series:
     print("=" * 50)
 
     return sample
-
+   
 
 async def run_planner(sample: pd.Series) -> Optional[dict[str, Any]]:
     """Run the planner on a sample and return the generated plan."""
 
     print("\n=== RUNNING PLANNER ===")
 
-    # Create planner
-    planner = create_planner()
-
-    # Prepare task description
+    # Prepare task description first
     task_description = """
-Task: Apply the PC algorithm to determine if the hypothesis is True or False.
+Task: Given a natural-language input that contains a Premise and a Hypothesis, decide whether the Hypothesis is True or False under the Peter-Clark (PC) algorithm.
 
-The PC algorithm follows these steps:
-1. Skeleton Discovery: Extract variables and build initial graph from correlations
-2. Edge Removal: Remove edges based on conditional independencies
-3. V-structure Orientation: Orient v-structures (colliders) using conditional independence
-4. Meek Rules: Apply orientation rules to propagate edge directions
-5. Hypothesis Evaluation: Check the specific hypothesis against the final causal graph
+- PC is a constraint-based causal discovery method that infers a causal equivalence class (CPDAG) from observational (in)dependence information.
+- Before deciding, reconstruct a global causal structure over all variables mentioned in the Premise; do NOT rely on pairwise or local checks.
+- Return True only if the claim holds in every DAG in the Markov equivalence class implied by the Premise; otherwise return False.
 
-You must create stages that reconstruct the FULL causal graph, needed for accurate causal inference.
+Your plan must mirror the canonical PC algorithm. Reconstruct a global causal structure over all variables before deciding. Do not base the decision on a single pair or local cues. If your plan deviates from PC semantics, it is invalid.
 
 Input available in context: 'input' (contains premise with variables, correlations, conditional independencies, and hypothesis).
-Final answer should be True or False.
+
+CRITICAL OUTPUT FORMAT: The final stage must output ONLY a boolean value (true or false).
 """
 
-#     task_description = """
-# Task: Given a natural-language input that contains a Premise and a Hypothesis, decide whether the Hypothesis is True or False under the Peter-Clark (PC) algorithm.
+    # Create algorithm-aware planner
+    planner = await create_planner(task_description)
 
-# - PC is a constraint-based causal discovery method that infers a causal equivalence class (CPDAG) from observational (in)dependence information.
-# - Before deciding, reconstruct a global causal structure over all variables mentioned in the Premise; do NOT rely on pairwise or local checks.
-# - Return True only if the claim holds in every DAG in the Markov equivalence class implied by the Premise; otherwise return False.
-
-# Your plan must mirror the canonical PC algorithm. Reconstruct a global causal structure over all variables before deciding. Do not base the decision on a single pair or local cues. If your plan deviates from PC semantics, it is invalid.
-
-# Input available in context: 'input' (contains premise with variables, correlations, conditional independencies, and hypothesis).
-# Final answer should be True or False.
-# """
 
     print("📝 TASK DESCRIPTION SENT TO PLANNER:")
     print("-" * 80)
@@ -80,55 +65,52 @@ Final answer should be True or False.
     print(f"📊 Number of stages: {len(plan.stages)}")
     print(f"🔑 Final key: {plan.final_key}")
 
+    # Print the complete generated plan
+    # print(f"\n📋 === GENERATED PLAN ===")
+    # print(json.dumps(plan.model_dump(), indent=2))
+
     # Validate and refine schemas
-    print(f"\n🔍 === SCHEMA VALIDATION & REFINEMENT ===")
-    refined_stages = []
+    print("\n🔍 Schema refinement:", end=" ")
+    refined_count = 0
 
-    for i, stage in enumerate(plan.stages, 1):
-        print(f"\n🔢 Checking Stage {i}: {stage.id}")
-
+    for stage in plan.stages:
         if is_schema_too_generic(stage.output_schema):
-            print(f"  ⚠️  Schema is too generic: {stage.output_schema}")
-            print(f"  🔄 Refining schema...")
-
             try:
-                refined_schema = await refine_schema(stage.id, stage.writes, stage.prompt_template)
-                stage.output_schema = refined_schema
-                print(f"  ✅ Refined schema: {json.dumps(refined_schema, indent=2)}")
-            except Exception as e:
-                print(f"  ❌ Failed to refine schema: {e}")
-                print(f"  📝 Using fallback schema")
+                stage.output_schema = await refine_schema(stage.id, stage.writes, stage.prompt_template)
+                refined_count += 1
+                print("✅", end="")
+            except Exception:
+                print("❌", end="")
         else:
-            print(f"  ✅ Schema looks good: {stage.output_schema}")
+            print("✓", end="")
 
-        refined_stages.append(stage)
+    print(f" ({refined_count}/{len(plan.stages)} refined)")
 
-    # Update plan with refined stages
-    plan.stages = refined_stages
-    print(f"\n🎉 Schema validation complete!")
+    print(f"\n📋 Plan: {len(plan.stages)} stages → {plan.final_key}")
 
-    print(f"\n📋 === DETAILED PLAN BREAKDOWN ===")
-    for i, stage in enumerate(plan.stages, 1):
-        print(f"\n🔢 STAGE {i}: {stage.id}")
-        print(f"  📥 Reads from context: {stage.reads}")
-        print(f"  📤 Writes to context: {stage.writes}")
-        print(f"  📝 Prompt template: {stage.prompt_template}")
-        print(f"  🏗️  Output schema: {json.dumps(stage.output_schema, indent=4)}")
-
-    print(f"\n🌊 === CONTEXT FLOW ANALYSIS ===")
-    all_keys = set(["input"])  # Start with initial context
-    print(f"🏁 Initial context: {list(all_keys)}")
+    # Show context flow first
+    print("\n🌊 Context Flow:")
+    all_keys = {"input"}
+    print(f"  Start: {sorted(all_keys)}")
 
     for i, stage in enumerate(plan.stages, 1):
-        print(f"\n🔢 After stage {i} ({stage.id}):")
-        for key in stage.writes:
-            all_keys.add(key)
-        print(f"  📋 Available keys: {sorted(list(all_keys))}")
+        missing = set(stage.reads) - all_keys
+        if missing:
+            print(f"  ⚠️  Stage {i} missing: {missing}")
+        all_keys.update(stage.writes)
+        print(f"  Stage {i}: {sorted(all_keys)}")
 
-        # Check if this stage can read what it needs
-        missing_reads = set(stage.reads) - all_keys
-        if missing_reads:
-            print(f"  ⚠️  WARNING: Stage {i} tries to read non-existent keys: {missing_reads}")
+    # Show detailed stage breakdown
+    print(f"\n📝 Stage Details:")
+    for i, stage in enumerate(plan.stages, 1):
+        print(f"  {i}. {stage.id}")
+        print(f"     Reads: {stage.reads}")
+        print(f"     Writes: {stage.writes}")
+        print(f"     Prompt:")
+        # Show full prompt with proper indentation
+        for line in stage.prompt_template.split('\n'):
+            print(f"       {line}")
+        print()
 
     return plan.model_dump()
 
@@ -155,7 +137,7 @@ async def run_complete_workflow(sample: pd.Series) -> Optional[dict[str, Any]]:
     final_result = final_context.get(final_key)
 
     print(f"\n🎯 FINAL RESULT: {final_result}")
-    print(f"Expected: {sample.get('label', 'Unknown')}")
+    print(f"Expected: {bool(sample['label'])}")
 
     return {
         "plan": plan_dict,
@@ -168,7 +150,7 @@ async def run_complete_workflow(sample: pd.Series) -> Optional[dict[str, Any]]:
 async def main() -> None:
     csv_path = "../data/test_dataset.csv"
     sample = fetch_sample(csv_path)
-    result = await run_complete_workflow(sample)
+    await run_complete_workflow(sample)
 
 
 if __name__ == "__main__":

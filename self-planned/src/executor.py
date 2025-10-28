@@ -26,144 +26,142 @@ Do not include explanations, markdown, or additional text - only the raw JSON.
 
 
 async def run_stage(stage: Stage, context: Dict[str, Any]) -> Dict[str, Any]:
+    import time
+
     executor = create_executor()
 
     # Get the data this stage needs to read
     read_data = {key: context.get(key) for key in stage.reads}
 
-    print(f"\n🔄 EXECUTING STAGE: {stage.id}")
-    print(f"📖 Context keys available: {list(context.keys())}")
-    print(f"📥 Reading from context: {stage.reads}")
-    print(f"📤 Will write to context: {stage.writes}")
+    print(f"\n🔄 {stage.id}: {stage.reads} → {stage.writes}", end=" ")
 
-    # Show what data is being read
-    if stage.reads:
-        print("📊 Read data:")
-        for key in stage.reads:
-            value = read_data[key]
-            if isinstance(value, str) and len(value) > 200:
-                print(f"  {key}: {value[:200]}... (truncated)")
-            else:
-                print(f"  {key}: {value}")
+    start_time = time.time()
 
     # Render the prompt template with the read data
     try:
-        rendered_prompt = stage.prompt_template.format(**read_data)
+        # First, escape any braces that aren't actual placeholders
+        escaped_template = stage.prompt_template
+
+        # Find all placeholders that should be replaced (those that match keys in read_data)
+        import re
+        actual_placeholders = set(read_data.keys())
+
+        # Replace all {text} that are NOT actual placeholders with {{text}}
+        def escape_non_placeholders(match):
+            placeholder = match.group(1)
+            if placeholder in actual_placeholders:
+                return match.group(0)  # Keep as {placeholder}
+            else:
+                return '{{' + placeholder + '}}'  # Escape as {{placeholder}}
+
+        escaped_template = re.sub(r'\{([^}]+)\}', escape_non_placeholders, escaped_template)
+
+        rendered_prompt = escaped_template.format(**read_data)
     except KeyError as e:
         raise ValueError(f"Stage '{stage.id}' tried to read key {e} that doesn't exist in context")
 
     # Add schema information to guide the output
     prompt_with_schema = f"{rendered_prompt}\n\nOutput JSON Schema:\n{json.dumps(stage.output_schema, indent=2)}"
 
-    print("\n📝 FULL PROMPT SENT TO LLM:")
-    print("-" * 80)
-    print(prompt_with_schema)
-    print("-" * 80)
-
     # Execute the stage
-    print(f"\n⏳ Calling LLM for stage '{stage.id}'...")
     result = await executor.run(prompt_with_schema)
     json_output = result.output
-
-    print("\n📤 RAW LLM RESPONSE:")
-    print("-" * 80)
-    print(json_output)
-    print("-" * 80)
 
     # Parse the JSON response
     try:
         stage_output = json.loads(json_output)
-        print("✅ Successfully parsed JSON response")
+        print("✅", end="")
     except json.JSONDecodeError:
         try:
             stage_output = ast.literal_eval(json_output)
-            print("✅ Successfully parsed response using ast.literal_eval")
+            print("✅", end="")
         except (ValueError, SyntaxError) as e:
-            print("❌ Failed to parse response as JSON or dict")
-            raise ValueError(f"Stage '{stage.id}' returned invalid JSON/dict: {e}\nOutput: {json_output}")
-
-    # Show parsed output
-    print("\n📋 PARSED STAGE OUTPUT:")
-    for key, value in stage_output.items():
-        if isinstance(value, str) and len(value) > 200:
-            print(f"  {key}: {value[:200]}... (truncated)")
-        else:
-            print(f"  {key}: {value}")
+            print("❌")
+            raise ValueError(f"Stage '{stage.id}' returned invalid JSON/dict: {e}")
 
     # Validate that all required keys are present
+    missing_keys = [key for key in stage.writes if key not in stage_output]
+    if missing_keys:
+        print(f"❌ Missing: {missing_keys}")
+        raise ValueError(f"Stage '{stage.id}' did not produce required output keys: {missing_keys}")
+
+    # Calculate execution time and output metrics
+    execution_time = time.time() - start_time
+
+    # Get size info and preview for outputs
+    output_info = []
+    output_preview = []
+
     for key in stage.writes:
-        if key not in stage_output:
-            print(f"❌ Missing required output key: '{key}'")
-            raise ValueError(f"Stage '{stage.id}' did not produce required output key '{key}'")
-        print(f"✅ Found required output key: '{key}'")
+        value = stage_output[key]
+        if isinstance(value, dict):
+            output_info.append(f"{key}={len(value)} keys")
+            # Show some key names for dicts
+            if value:
+                preview_keys = list(value.keys())[:2]
+                if len(value) > 2:
+                    preview_keys.append("...")
+                output_preview.append(f"{key}:[{', '.join(str(k) for k in preview_keys)}]")
+        elif isinstance(value, list):
+            output_info.append(f"{key}={len(value)} items")
+            # Show first few items for lists
+            if value:
+                preview_items = value[:2] if len(value) >= 2 else value
+                preview_str = str(preview_items)[1:-1]  # Remove brackets
+                if len(value) > 2:
+                    preview_str += ", ..."
+                output_preview.append(f"{key}:[{preview_str}]")
+        elif isinstance(value, str):
+            output_info.append(f"{key}={len(value)} chars")
+            # Show truncated string
+            preview = value[:30] + "..." if len(value) > 30 else value
+            output_preview.append(f"{key}:'{preview}'")
+        elif isinstance(value, bool):
+            output_info.append(f"{key}=bool")
+            output_preview.append(f"{key}:{value}")
+        else:
+            output_info.append(f"{key}={type(value).__name__}")
+            output_preview.append(f"{key}:{str(value)[:20]}")
+
+    print(f" ({execution_time:.1f}s, {', '.join(output_info)})")
+
+    # Show output preview on next line with indentation
+    if output_preview:
+        print(f"     → {', '.join(output_preview)}")
+
+    # Show full content of outputs
+    print(f"     📄 Full Output:")
+    for key in stage.writes:
+        value = stage_output[key]
+        print(f"       {key}: {value}")
 
     return stage_output
 
 
 async def run_plan(plan: Plan, initial_context: Dict[str, Any]) -> Dict[str, Any]:
     """Execute a complete plan by running all stages sequentially."""
+    import time
 
-    print(f"\n🎯 === EXECUTING PLAN ({len(plan.stages)} stages) ===")
-    print(f"🔑 Final result will be read from key: '{plan.final_key}'")
-
-    # Start with the initial context
+    plan_start_time = time.time()
+    print(f"\n🎯 Executing {len(plan.stages)} stages:")
     context = dict(initial_context)
-
-    print("\n🏁 INITIAL CONTEXT:")
-    print(f"📋 Keys: {list(context.keys())}")
-    for key, value in context.items():
-        if isinstance(value, str) and len(value) > 200:
-            print(f"  {key}: {value[:200]}... (truncated)")
-        else:
-            print(f"  {key}: {value}")
 
     # Run each stage sequentially
     for i, stage in enumerate(plan.stages, 1):
-        print(f"\n🔢 === STAGE {i}/{len(plan.stages)}: {stage.id} ===")
-
-        print(f"\n📊 CONTEXT BEFORE STAGE {i}:")
-        print(f"📋 Available keys: {list(context.keys())}")
-
         try:
             # Execute the stage
             stage_output = await run_stage(stage, context)
 
             # Update context with stage outputs
-            print("\n🔄 UPDATING CONTEXT WITH STAGE OUTPUT:")
             for key in stage.writes:
-                old_value = context.get(key, "<<NOT_PRESENT>>")
-                new_value = stage_output[key]
-                context[key] = new_value
-
-                print(f"  🔄 Key '{key}':")
-                print(f"    Before: {old_value}")
-                print(f"    After:  {new_value}")
-
-            print(f"\n📊 CONTEXT AFTER STAGE {i}:")
-            print(f"📋 Available keys: {list(context.keys())}")
-
-            # Show summary of context evolution
-            print("\n📈 CONTEXT EVOLUTION SUMMARY:")
-            for key, value in context.items():
-                if isinstance(value, dict):
-                    print(f"  {key}: {{dict with {len(value)} keys}}")
-                elif isinstance(value, list):
-                    print(f"  {key}: [list with {len(value)} items]")
-                elif isinstance(value, str):
-                    if len(value) > 100:
-                        print(f"  {key}: \"{value[:100]}...\" (truncated)")
-                    else:
-                        print(f"  {key}: \"{value}\"")
-                else:
-                    print(f"  {key}: {value}")
+                context[key] = stage_output[key]
 
         except Exception as e:
-            print(f"❌ ERROR in stage '{stage.id}': {e}")
-            print(f"📊 Context at time of error: {list(context.keys())}")
+            print(f"❌ ERROR in {stage.id}: {e}")
             raise
 
-    print("\n🎉 === PLAN EXECUTION COMPLETE ===")
-    print(f"🔑 Final context keys: {list(context.keys())}")
-    print(f"🎯 Final answer key '{plan.final_key}': {context.get(plan.final_key, '<<NOT_FOUND>>')}")
+    total_time = time.time() - plan_start_time
+    final_result = context.get(plan.final_key, '<<NOT_FOUND>>')
+    print(f"\n🎯 Completed in {total_time:.1f}s → {final_result}")
 
     return context
