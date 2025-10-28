@@ -138,21 +138,58 @@ async def run_complete_workflow(sample: pd.Series) -> Optional[dict[str, Any]]:
     final_key = plan.final_key or "hypothesis_result"
     final_result = final_context.get(final_key)
 
-    print(f"\n🎯 FINAL RESULT: {final_result}")
-    print(f"Expected: {bool(sample['label'])}")
+    # Step 4: Automatic evaluation
+    expected = bool(sample['label'])
+
+    # Convert final_result to boolean if needed
+    if isinstance(final_result, str):
+        actual = final_result.lower() in ['true', '1', 'yes']
+    elif isinstance(final_result, int):
+        actual = bool(final_result)
+    else:
+        actual = bool(final_result)
+
+    # Calculate evaluation metrics
+    is_correct = actual == expected
+
+    print(f"\n🎯 FINAL RESULT: {final_result} (parsed as: {actual})")
+    print(f"📊 EXPECTED: {expected}")
+    print(f"✅ EVALUATION: {'CORRECT' if is_correct else 'INCORRECT'}")
+
+    if is_correct:
+        print("🎉 Success! Model prediction matches expected result.")
+    else:
+        print("❌ Failed! Model prediction differs from expected result.")
 
     return {
         "plan": plan_dict,
         "final_context": final_context,
         "final_result": final_result,
-        "expected": sample.get("label", "Unknown"),
+        "actual_boolean": actual,
+        "expected": expected,
+        "is_correct": is_correct,
     }
 
 
 async def main() -> None:
     csv_path = "../data/test_dataset.csv"
     sample = fetch_sample(csv_path)
-    await run_complete_workflow(sample)
+    result = await run_complete_workflow(sample)
+
+    # Final evaluation summary
+    print("\n" + "=" * 50)
+    if result is None:
+        print("📋 EVALUATION SUMMARY:")
+        print("   ❌ WORKFLOW FAILED - Unable to generate or execute plan")
+        print("=" * 50)
+        return
+
+    print("📋 EVALUATION SUMMARY:")
+    print(f"   Sample Index: {sample.name if hasattr(sample, 'name') else 'N/A'}")
+    print(f"   Predicted: {result['actual_boolean']}")
+    print(f"   Expected:  {result['expected']}")
+    print(f"   Result:    {'✅ CORRECT' if result['is_correct'] else '❌ INCORRECT'}")
+    print("=" * 50)
 
 
 if __name__ == "__main__":
