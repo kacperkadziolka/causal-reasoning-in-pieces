@@ -12,7 +12,7 @@ from pipeline.pipeline import CausalDiscoveryPipeline, BatchCasualDiscoveryPipel
 from pipeline.stages import UndirectedSkeletonStage, VStructuresStage, MeekRulesStage, HypothesisEvaluationStage
 from llm_client import OpenAIClient, BaseLLMClient, HuggingFaceClient, DeepSeekClient
 
-LOGS_DIR: Path = Path("logs")
+LOGS_DIR: Path = Path("causal_discovery/logs")
 
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -22,7 +22,7 @@ def parse_arguments() -> argparse.Namespace:
         "--input_file",
         type=str,
         help="Path to the split csv file",
-        default="../data/test_dataset.csv"
+        default="data_peturbations/test_dataset_variable_refactorization.csv"
     )
     parser.add_argument(
         "--debug",
