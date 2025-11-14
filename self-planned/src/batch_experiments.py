@@ -40,6 +40,12 @@ class ExperimentResult:
     execution_time: float
     num_stages: int
     error: Optional[str] = None
+    # Enhanced logging fields
+    plan_json: Optional[str] = None
+    stage_details: Optional[str] = None
+    stage_prompts: Optional[str] = None
+    intermediate_outputs: Optional[str] = None
+    final_context: Optional[str] = None
 
 
 @dataclass
@@ -51,6 +57,9 @@ class BatchResults:
     successful_experiments: int
     failed_experiments: int
     accuracy: float
+    precision: float
+    recall: float
+    f1_score: float
     avg_execution_time: float
     total_execution_time: float
     start_time: str
@@ -125,24 +134,55 @@ class BatchExperimentRunner:
             if result is None:
                 return ExperimentResult(
                     sample_idx=sample_idx,
-                    sample_input=sample['input'][:100] + "..." if len(sample['input']) > 100 else sample['input'],
+                    sample_input=sample['input'],
                     expected=bool(sample['label']),
                     predicted=False,  # Default for failed experiments
                     is_correct=False,
                     execution_time=execution_time,
                     num_stages=0,
-                    error="Workflow failed to generate result"
+                    error="Workflow failed to generate result",
+                    plan_json=None,
+                    stage_details=None,
+                    stage_prompts=None,
+                    intermediate_outputs=None,
+                    final_context=None
                 )
+
+            # Extract enhanced information
+            plan_dict = result.get('plan', {})
+            final_context = result.get('final_context', {})
+
+            # Serialize plan and stage information
+            plan_json = json.dumps(plan_dict) if plan_dict else None
+
+            # Extract stage details and prompts
+            stage_details = []
+            stage_prompts = []
+            if 'stages' in plan_dict:
+                for i, stage in enumerate(plan_dict['stages'], 1):
+                    stage_details.append(f"Stage {i}: {stage.get('id', 'unknown')} | Reads: {stage.get('reads', [])} | Writes: {stage.get('writes', [])}")
+                    stage_prompts.append(f"Stage {i} Prompt:\n{stage.get('prompt_template', 'No prompt')}\n")
+
+            # Extract intermediate outputs (context keys and their values)
+            intermediate_outputs = []
+            for key, value in final_context.items():
+                if key != 'input':  # Skip the input as it's already captured
+                    intermediate_outputs.append(f"{key}: {str(value)}")
 
             return ExperimentResult(
                 sample_idx=sample_idx,
-                sample_input=sample['input'][:100] + "..." if len(sample['input']) > 100 else sample['input'],
+                sample_input=sample['input'],
                 expected=result['expected'],
                 predicted=result['actual_boolean'],
                 is_correct=result['is_correct'],
                 execution_time=execution_time,
                 num_stages=len(result['plan']['stages']) if 'plan' in result else 0,
-                error=None
+                error=None,
+                plan_json=plan_json,
+                stage_details="\n".join(stage_details) if stage_details else None,
+                stage_prompts="\n".join(stage_prompts) if stage_prompts else None,
+                intermediate_outputs="\n".join(intermediate_outputs) if intermediate_outputs else None,
+                final_context=json.dumps(final_context) if final_context else None
             )
 
         except Exception as e:
@@ -155,7 +195,12 @@ class BatchExperimentRunner:
                 is_correct=False,
                 execution_time=execution_time,
                 num_stages=0,
-                error=str(e)
+                error=str(e),
+                plan_json=None,
+                stage_details=None,
+                stage_prompts=None,
+                intermediate_outputs=None,
+                final_context=None
             )
 
     def print_progress(self, current: int, total: int, result: ExperimentResult) -> None:
@@ -211,12 +256,28 @@ class BatchExperimentRunner:
         accuracy = sum(r.is_correct for r in successful_results) / len(successful_results) if successful_results else 0.0
         avg_execution_time = float(np.mean([r.execution_time for r in self.results]))
 
+        # Calculate precision, recall, and F1 score
+        if successful_results:
+            # For binary classification: True Positive, True Negative, False Positive, False Negative
+            true_positives = sum(1 for r in successful_results if r.expected and r.predicted)
+            false_positives = sum(1 for r in successful_results if not r.expected and r.predicted)
+            false_negatives = sum(1 for r in successful_results if r.expected and not r.predicted)
+
+            precision = true_positives / (true_positives + false_positives) if (true_positives + false_positives) > 0 else 0.0
+            recall = true_positives / (true_positives + false_negatives) if (true_positives + false_negatives) > 0 else 0.0
+            f1_score = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0.0
+        else:
+            precision = recall = f1_score = 0.0
+
         batch_results = BatchResults(
             config=self.config,
             total_experiments=len(self.results),
             successful_experiments=len(successful_results),
             failed_experiments=len(self.results) - len(successful_results),
             accuracy=accuracy,
+            precision=precision,
+            recall=recall,
+            f1_score=f1_score,
             avg_execution_time=avg_execution_time,
             total_execution_time=total_time,
             start_time=start_datetime.isoformat(),
@@ -230,7 +291,7 @@ class BatchExperimentRunner:
         """Save experiment results to files."""
         # Create output directory
         output_dir = Path(self.config.output_dir)
-        output_dir.mkdir(exist_ok=True)
+        output_dir.mkdir(parents=True, exist_ok=True)
 
         # Generate experiment name
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -266,6 +327,9 @@ class BatchExperimentRunner:
         print(f"Failed:                {batch_results.failed_experiments}")
         print(f"Success Rate:          {(batch_results.successful_experiments/batch_results.total_experiments)*100:.1f}%")
         print(f"Accuracy:              {batch_results.accuracy*100:.1f}%")
+        print(f"Precision:             {batch_results.precision*100:.1f}%")
+        print(f"Recall:                {batch_results.recall*100:.1f}%")
+        print(f"F1 Score:              {batch_results.f1_score*100:.1f}%")
         print(f"Avg Execution Time:    {batch_results.avg_execution_time:.2f}s")
         print(f"Total Execution Time:  {batch_results.total_execution_time:.1f}s")
 

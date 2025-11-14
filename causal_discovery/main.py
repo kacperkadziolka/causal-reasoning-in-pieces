@@ -40,19 +40,19 @@ def parse_arguments() -> argparse.Namespace:
         "--mode",
         type=str,
         choices=["sequential", "batched"],
-        default="sequential",
+        default="batched",
         help="Run pipeline in sequential or batched mode.",
     )
     parser.add_argument(
         "--num_experiments",
         type=int,
-        default=1,
+        default=1200,
         help="Number of experiments to run. If greater than dataset length, the whole test set will be used.",
     )
     parser.add_argument(
         "--batch_size",
         type=int,
-        default=4,
+        default=64,
         help="Batch size for batch processing.",
     )
     return parser.parse_args()

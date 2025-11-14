@@ -18,7 +18,7 @@ def parse_args():
     parser.add_argument(
         "--dataset", "-d",
         type=str,
-        default="data/test_dataset.csv",
+        default="../data/test_dataset.csv",
         help="Path to the dataset CSV file"
     )
 
@@ -44,7 +44,7 @@ def parse_args():
     parser.add_argument(
         "--output-dir", "-o",
         type=str,
-        default="self-planned/experiments",
+        default="experiments",
         help="Output directory for results"
     )
 
