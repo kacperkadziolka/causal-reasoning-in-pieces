@@ -197,7 +197,7 @@ Focus on making the plan more executable, mathematically precise, and algorithmi
                 # Refine based on previous feedback
                 print("🔧 Refining plan based on feedback...")
                 previous_feedback = iteration_history[-1]["feedback"]
-                current_plan = await self._refine_plan(current_plan, previous_feedback, algorithm_knowledge)
+                current_plan = await self._refine_plan(current_plan, previous_feedback, algorithm_knowledge) # pyright: ignore[reportArgumentType]
 
             # Evaluate the plan
             print("📊 Evaluating plan quality...")
@@ -225,7 +225,7 @@ Focus on making the plan more executable, mathematically precise, and algorithmi
                 print(f"🏁 Max iterations reached. Final score: {overall_score}/10")
 
         print(f"\n🎯 Planning completed after {len(iteration_history)} iterations")
-        return current_plan, iteration_history
+        return current_plan, iteration_history # pyright: ignore[reportReturnType]
 
     async def _generate_initial_plan(self, task_description: str, algorithm_knowledge: str) -> Plan:
         """Generate the initial plan"""
@@ -330,7 +330,7 @@ Reference the <CANONICAL_STAGES> in the algorithm knowledge to ensure algorithmi
                 return float(matches[-1])
 
             return 5.0  # Default middle score if no pattern found
-        except:
+        except:  # noqa: E722
             return 5.0  # Safe fallback
 
 
