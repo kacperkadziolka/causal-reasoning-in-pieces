@@ -2,7 +2,11 @@ from pydantic_ai import Agent
 from typing import Dict, Any, List, Tuple
 import asyncio
 import json
-from ..models import Plan
+import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).parent))
+from models import Plan
 
 
 class IterativePlanner:

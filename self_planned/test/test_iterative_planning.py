@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.planning.iterative_planner import IterativePlanner  # noqa: E402
+from src.plan.iterative_planner import IterativePlanner  # noqa: E402
 from src.knowledge.extractor import EnhancedKnowledgeExtractor  # noqa: E402
 
 load_dotenv()
