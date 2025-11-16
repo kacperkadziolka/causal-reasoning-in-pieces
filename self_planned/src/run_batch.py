@@ -2,7 +2,7 @@ import argparse
 import asyncio
 from pathlib import Path
 
-from batch_experiments import BatchExperimentRunner, ExperimentConfig
+from execute.batch_experiments import BatchExperimentRunner, ExperimentConfig
 
 
 def parse_args():
@@ -11,7 +11,7 @@ def parse_args():
     parser.add_argument(
         "--batch-size", "-b",
         type=int,
-        default=100,
+        default=20,
         help="Number of experiments to run (max: dataset size)"
     )
 

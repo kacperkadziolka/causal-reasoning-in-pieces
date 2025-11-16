@@ -9,7 +9,7 @@ import pandas as pd
 import numpy as np
 from dotenv import load_dotenv
 
-from main import run_complete_workflow
+from main import run_enhanced_workflow
 
 load_dotenv()
 
@@ -128,7 +128,7 @@ class BatchExperimentRunner:
             sample = self.dataset.iloc[sample_idx]
 
             # Run the experiment
-            result = await run_complete_workflow(sample)
+            result = await run_enhanced_workflow(sample)
             execution_time = time.time() - start_time
 
             if result is None:
