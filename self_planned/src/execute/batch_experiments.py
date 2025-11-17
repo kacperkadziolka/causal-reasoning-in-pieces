@@ -149,19 +149,25 @@ class BatchExperimentRunner:
                 )
 
             # Extract enhanced information
-            plan_dict = result.get('plan', {})
+            plan_dict = result.get('plan_summary', {})
             final_context = result.get('final_context', {})
 
             # Serialize plan and stage information
             plan_json = json.dumps(plan_dict) if plan_dict else None
 
-            # Extract stage details and prompts
+            # Extract stage details and prompts from enhanced workflow
             stage_details = []
             stage_prompts = []
             if 'stages' in plan_dict:
                 for i, stage in enumerate(plan_dict['stages'], 1):
                     stage_details.append(f"Stage {i}: {stage.get('id', 'unknown')} | Reads: {stage.get('reads', [])} | Writes: {stage.get('writes', [])}")
-                    stage_prompts.append(f"Stage {i} Prompt:\n{stage.get('prompt_template', 'No prompt')}\n")
+                    prompt_template = stage.get('prompt_template', 'No prompt available')
+                    # Keep full prompts for analysis - truncate only if extremely long
+                    if len(prompt_template) > 2000:
+                        truncated_prompt = prompt_template[:2000] + "... (truncated for length)"
+                    else:
+                        truncated_prompt = prompt_template
+                    stage_prompts.append(f"Stage {i} Prompt:\n{truncated_prompt}\n")
 
             # Extract intermediate outputs (context keys and their values)
             intermediate_outputs = []
@@ -173,10 +179,10 @@ class BatchExperimentRunner:
                 sample_idx=sample_idx,
                 sample_input=sample['input'],
                 expected=result['expected'],
-                predicted=result['actual_boolean'],
+                predicted=result['predicted'],
                 is_correct=result['is_correct'],
                 execution_time=execution_time,
-                num_stages=len(result['plan']['stages']) if 'plan' in result else 0,
+                num_stages=len(result['plan_summary']['stages']) if 'plan_summary' in result else 0,
                 error=None,
                 plan_json=plan_json,
                 stage_details="\n".join(stage_details) if stage_details else None,

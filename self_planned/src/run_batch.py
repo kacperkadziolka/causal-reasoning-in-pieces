@@ -11,7 +11,7 @@ def parse_args():
     parser.add_argument(
         "--batch-size", "-b",
         type=int,
-        default=20,
+        default=3,
         help="Number of experiments to run (max: dataset size)"
     )
 

@@ -278,8 +278,13 @@ Analyze natural-language causal reasoning problems using the **Peter-Clark (PC) 
             "is_correct": is_correct,
             "final_context": final_context,
             "plan_summary": {
-                "stages": [{"id": stage.id, "reads": stage.reads, "writes": stage.writes}
-                          for stage in plan.stages],
+                "stages": [{
+                    "id": stage.id,
+                    "reads": stage.reads,
+                    "writes": stage.writes,
+                    "prompt_template": stage.prompt_template,
+                    "output_schema": stage.output_schema
+                } for stage in plan.stages],
                 "final_key": plan.final_key
             }
         }
