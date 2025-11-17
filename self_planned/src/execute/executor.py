@@ -99,16 +99,33 @@ async def run_stage(stage: Stage, context: Dict[str, Any]) -> Dict[str, Any]:
         # Replace all {text} that are NOT actual placeholders with {{text}}
         def escape_non_placeholders(match):
             placeholder = match.group(1)
+            # Handle both simple keys and complex content in braces
             if placeholder in actual_placeholders:
                 return match.group(0)  # Keep as {placeholder}
             else:
+                # Escape any brace content that's not a valid placeholder
                 return "{{" + placeholder + "}}"  # Escape as {{placeholder}}
 
+        # More robust pattern to catch all brace patterns
         escaped_template = re.sub(
             r"\{([^}]+)\}", escape_non_placeholders, escaped_template
         )
 
-        rendered_prompt = escaped_template.format(**read_data)
+        # Additional safety: Use string.Template as fallback for complex cases
+        from string import Template
+
+        # Try format first, fallback to Template if it fails
+        try:
+            rendered_prompt = escaped_template.format(**read_data)
+        except (IndexError, KeyError, ValueError):
+            # Fallback: Convert to Template syntax and substitute
+            # Convert {key} to $key for Template
+            template_str = escaped_template
+            for key in actual_placeholders:
+                template_str = template_str.replace("{" + key + "}", "$" + key)
+
+            template = Template(template_str)
+            rendered_prompt = template.safe_substitute(**read_data)
     except KeyError as e:
         raise ValueError(
             f"Stage '{stage.id}' tried to read key {e} that doesn't exist in context"

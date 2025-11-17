@@ -60,21 +60,67 @@ Follow the Plan schema exactly:
 }
 ```
 
+# PROMPT TEMPLATE CONSTRUCTION
+For each stage's `prompt_template`, follow this EXACT structure:
+
+```
+# ROLE
+You are a [specific domain expert role] executing the [specific algorithmic phase] of the [algorithm name].
+
+# TASK
+[Clear, specific task description using mathematical terminology]
+
+# INPUT CONTEXT
+- **Available Data**: {list of reads keys}
+- **Input Format**: [Description of expected input structure]
+- **Mathematical Context**: [Relevant mathematical background from algorithm knowledge]
+
+# STEP-BY-STEP PROCESS
+1. **[Step Name]**: [Detailed mathematical procedure]
+   - **Input**: [Specific input requirements]
+   - **Process**: [Exact computational/logical steps]
+   - **Output**: [Expected intermediate result]
+   - **Validation**: [How to verify correctness]
+
+2. **[Step Name]**: [Continue pattern for all sub-steps]
+
+# MATHEMATICAL REQUIREMENTS
+- **Precision**: [Specific mathematical accuracy requirements]
+- **Notation**: [Required mathematical notation standards]
+- **Validation**: [Mathematical consistency checks to perform]
+- **Edge Cases**: [Boundary conditions to consider]
+
+# OUTPUT REQUIREMENTS
+- **Format**: JSON object matching the provided schema exactly
+- **Quality**: [Specific quality criteria from algorithm knowledge]
+- **Validation**: [Self-verification steps to perform]
+
+# CRITICAL SUCCESS FACTORS
+- [Algorithm-specific success criteria from knowledge base]
+- Mathematical rigor and algorithmic fidelity
+- Perfect schema compliance
+
+Execute this stage with mathematical precision and algorithmic correctness.
+```
+
 # QUALITY REQUIREMENTS
 - **Algorithmic Fidelity**: Stages must match canonical algorithm phases
 - **Mathematical Precision**: Use exact terminology from algorithm knowledge
 - **Implementation Ready**: Each stage must be executable with clear instructions
 - **Validation Enabled**: Include criteria for verifying stage outputs
 - **Context Flow**: Perfect reads/writes connectivity
+- **Prompt Quality**: Each prompt_template must follow the structured format above
 
 # CRITICAL SUCCESS FACTORS
 1. **Reference Algorithm Knowledge**: Use content from <CANONICAL_STAGES> to design stages
 2. **Preserve Mathematical Objects**: Respect <KEY_MATHEMATICAL_OBJECTS> in schemas
-3. **Detailed Prompts**: Create comprehensive, algorithm-specific prompt templates
+3. **Structured Prompt Templates**: Use the exact prompt template structure specified above
 4. **Perfect Flow**: Ensure each stage's reads are available from prior stages
 5. **Validation Focus**: Include verification criteria in each prompt
+6. **Role Clarity**: Define specific expert role for each stage execution
+7. **Mathematical Rigor**: Embed algorithm knowledge into each prompt template
 
-The plan must be implementation-ready and algorithmically correct.
+The plan must be implementation-ready, algorithmically correct, and each prompt must be comprehensive with clear role definition, step-by-step instructions, and validation criteria.
 """
         )
 
@@ -101,6 +147,13 @@ Analyze execution plans for mathematical rigor, algorithmic correctness, and imp
 - Do schemas properly define mathematical objects?
 - Are reads/writes properly connected?
 
+## Prompt Template Quality (0-10)
+- Does each prompt template follow the required structured format?
+- Are role definitions clear and domain-specific?
+- Do prompts include step-by-step processes with validation?
+- Are mathematical requirements and critical success factors specified?
+- Do prompts provide clear input/output specifications?
+
 ## Mathematical Precision (0-10)
 - Is algorithmic terminology used correctly?
 - Are mathematical definitions preserved?
@@ -117,6 +170,7 @@ Provide detailed analysis in this structure:
 ## QUALITY SCORES
 - Algorithmic Correctness: X/10
 - Implementation Quality: X/10
+- Prompt Template Quality: X/10
 - Mathematical Precision: X/10
 - Completeness: X/10
 - **OVERALL SCORE: X/10**
