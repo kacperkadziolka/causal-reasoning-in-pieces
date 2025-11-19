@@ -74,7 +74,7 @@ You will receive:
     return executor
 
 
-async def run_stage(stage: Stage, context: Dict[str, Any]) -> Dict[str, Any]:
+async def run_stage(stage: Stage, context: Dict[str, Any], debug_logging: bool = False) -> Dict[str, Any]:
     import time
 
     executor = create_executor()
@@ -83,6 +83,11 @@ async def run_stage(stage: Stage, context: Dict[str, Any]) -> Dict[str, Any]:
     read_data = {key: context.get(key) for key in stage.reads}
 
     print(f"\n🔄 {stage.id}: {stage.reads} → {stage.writes}", end=" ")
+
+    if debug_logging:
+        print(f"\n🔍 DEBUG - Stage {stage.id}:")
+        print(f"     📥 Input data: {read_data}")
+        print(f"     📋 Stage prompt template: {stage.prompt_template[:200]}...")
 
     start_time = time.time()
 
@@ -134,29 +139,50 @@ async def run_stage(stage: Stage, context: Dict[str, Any]) -> Dict[str, Any]:
     # Add schema information to guide the output
     prompt_with_schema = f"{rendered_prompt}\n\nOutput JSON Schema:\n{json.dumps(stage.output_schema, indent=2)}"
 
+    if debug_logging:
+        print(f"     📝 Rendered prompt (first 500 chars): {prompt_with_schema[:500]}...")
+        if len(prompt_with_schema) > 500:
+            print(f"     📝 Rendered prompt (last 200 chars): ...{prompt_with_schema[-200:]}")
+
     # Execute the stage
     result = await executor.run(prompt_with_schema)
     json_output = result.output
+
+    if debug_logging:
+        print(f"     🤖 Raw LLM response: {json_output}")
 
     # Parse the JSON response
     try:
         stage_output = json.loads(json_output)
         print("✅", end="")
+        if debug_logging:
+            print(f"\n     ✅ JSON parsing successful")
     except json.JSONDecodeError:
         try:
             stage_output = ast.literal_eval(json_output)
             print("✅", end="")
+            if debug_logging:
+                print(f"\n     ✅ Fallback parsing successful")
         except (ValueError, SyntaxError) as e:
             print("❌")
+            if debug_logging:
+                print(f"\n     ❌ JSON/dict parsing failed: {e}")
             raise ValueError(f"Stage '{stage.id}' returned invalid JSON/dict: {e}")
 
     # Validate that all required keys are present
     missing_keys = [key for key in stage.writes if key not in stage_output]
     if missing_keys:
         print(f"❌ Missing: {missing_keys}")
+        if debug_logging:
+            print(f"     ❌ DEBUG - Missing keys: {missing_keys}")
+            print(f"     ❌ DEBUG - Expected keys: {stage.writes}")
+            print(f"     ❌ DEBUG - Actual keys: {list(stage_output.keys())}")
         raise ValueError(
             f"Stage '{stage.id}' did not produce required output keys: {missing_keys}"
         )
+
+    if debug_logging:
+        print(f"     ✅ All required output keys present: {stage.writes}")
 
     # Calculate execution time and output metrics
     execution_time = time.time() - start_time
@@ -213,7 +239,7 @@ async def run_stage(stage: Stage, context: Dict[str, Any]) -> Dict[str, Any]:
     return stage_output
 
 
-async def run_plan(plan: Plan, initial_context: Dict[str, Any]) -> Dict[str, Any]:
+async def run_plan(plan: Plan, initial_context: Dict[str, Any], debug_logging: bool = False) -> Dict[str, Any]:
     """Execute a complete plan by running all stages sequentially."""
     import time
 
@@ -221,15 +247,22 @@ async def run_plan(plan: Plan, initial_context: Dict[str, Any]) -> Dict[str, Any
     print(f"\n🎯 Executing {len(plan.stages)} stages:")
     context = dict(initial_context)
 
+    if debug_logging:
+        print(f"🔍 DEBUG - Initial context: {initial_context}")
+        print(f"🔍 DEBUG - Plan stages: {[stage.id for stage in plan.stages]}")
+
     # Run each stage sequentially
     for i, stage in enumerate(plan.stages, 1):
         try:
             # Execute the stage
-            stage_output = await run_stage(stage, context)
+            stage_output = await run_stage(stage, context, debug_logging=debug_logging)
 
             # Update context with stage outputs
             for key in stage.writes:
                 context[key] = stage_output[key]
+
+            if debug_logging:
+                print(f"🔍 DEBUG - Context after {stage.id}: {list(context.keys())}")
 
         except Exception as e:
             print(f"❌ ERROR in {stage.id}: {e}")

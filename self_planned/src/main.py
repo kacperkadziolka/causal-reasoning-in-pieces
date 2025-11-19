@@ -1,4 +1,5 @@
 import asyncio
+import os
 from typing import Any, Optional, Dict
 from dotenv import load_dotenv
 import pandas as pd
@@ -10,6 +11,9 @@ from plan.iterative_planner import IterativePlanner
 from execute.executor import run_plan
 
 load_dotenv()
+
+# Configurable debug logging
+DEBUG_LOGGING = os.getenv('DEBUG_LOGGING', 'false').lower() in ('true', '1', 'yes')
 
 
 def fetch_sample(csv_path: str) -> pd.Series:
@@ -239,7 +243,7 @@ Analyze natural-language causal reasoning problems using the **Peter-Clark (PC) 
     initial_context = {"input": sample["input"]}
 
     try:
-        final_context = await run_plan(plan, initial_context)
+        final_context = await run_plan(plan, initial_context, debug_logging=DEBUG_LOGGING)
         final_key = plan.final_key or "result"
         final_result = final_context.get(final_key)
 
