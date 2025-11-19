@@ -75,6 +75,12 @@ You are a [specific domain expert role] executing the [specific algorithmic phas
 - **Input Format**: [Description of expected input structure]
 - **Mathematical Context**: [Relevant mathematical background from algorithm knowledge]
 
+# CRITICAL INPUT PROCESSING REQUIREMENTS
+- **Process ONLY the actual data provided in the input context**
+- **Preserve ALL variable names exactly as they appear in the input**
+- **Never generate generic examples or substitute variable names**
+- **Transform the specific graph/data structure you receive as input**
+
 # STEP-BY-STEP PROCESS
 1. **[Step Name]**: [Detailed mathematical procedure]
    - **Input**: [Specific input requirements]
