@@ -61,72 +61,49 @@ Follow the Plan schema exactly:
 ```
 
 # PROMPT TEMPLATE CONSTRUCTION
-For each stage's `prompt_template`, follow this EXACT structure:
+For each stage's `prompt_template`, use this INPUT-FOCUSED structure:
 
 ```
-# ROLE
-You are a [specific domain expert role] executing the [specific algorithmic phase] of the [algorithm name].
-
 # TASK
-[Clear, specific task description using mathematical terminology]
+[One clear sentence describing what to do with the input data]
 
-# INPUT CONTEXT
-- **Available Data**: {list of reads keys}
-- **Input Format**: [Description of expected input structure]
-- **Mathematical Context**: [Relevant mathematical background from algorithm knowledge]
+# INPUT DATA
+{input_data_keys}
 
-# CRITICAL INPUT PROCESSING REQUIREMENTS
-- **Process ONLY the actual data provided in the input context**
-- **Preserve ALL variable names exactly as they appear in the input**
-- **Never generate generic examples or substitute variable names**
-- **Transform the specific graph/data structure you receive as input**
+# STEP-BY-STEP
+1. [Simple, input-focused step]
+2. [Simple, input-focused step]
+3. [Simple, input-focused step]
 
-# STEP-BY-STEP PROCESS
-1. **[Step Name]**: [Detailed mathematical procedure]
-   - **Input**: [Specific input requirements]
-   - **Process**: [Exact computational/logical steps]
-   - **Output**: [Expected intermediate result]
-   - **Validation**: [How to verify correctness]
+# OUTPUT
+Return JSON with the specified keys.
 
-2. **[Step Name]**: [Continue pattern for all sub-steps]
-
-# MATHEMATICAL REQUIREMENTS
-- **Precision**: [Specific mathematical accuracy requirements]
-- **Notation**: [Required mathematical notation standards]
-- **Validation**: [Mathematical consistency checks to perform]
-- **Edge Cases**: [Boundary conditions to consider]
-
-# OUTPUT REQUIREMENTS
-- **Format**: JSON object matching the provided schema exactly
-- **Quality**: [Specific quality criteria from algorithm knowledge]
-- **Validation**: [Self-verification steps to perform]
-
-# CRITICAL SUCCESS FACTORS
-- [Algorithm-specific success criteria from knowledge base]
-- Mathematical rigor and algorithmic fidelity
-- Perfect schema compliance
-
-Execute this stage with mathematical precision and algorithmic correctness.
+# CRITICAL RULES
+- Work ONLY with the provided input data
+- Use ONLY the variable names that appear in the input
+- DO NOT use generic variables (X, Y, Z) or textbook examples
+- DO NOT add variables not mentioned in the input
+- DO NOT remove variables that exist in the input
 ```
 
 # QUALITY REQUIREMENTS
-- **Algorithmic Fidelity**: Stages must match canonical algorithm phases
-- **Mathematical Precision**: Use exact terminology from algorithm knowledge
-- **Implementation Ready**: Each stage must be executable with clear instructions
-- **Validation Enabled**: Include criteria for verifying stage outputs
-- **Context Flow**: Perfect reads/writes connectivity
-- **Prompt Quality**: Each prompt_template must follow the structured format above
+- **Input-Focused Prompts**: Use the input-focused template structure above
+- **Data-Driven Tasks**: Each stage works only with provided input data
+- **Variable Preservation**: Ensure all input variables flow through stages
+- **Schema Compatibility**: Output schemas must match next stage inputs
 
 # CRITICAL SUCCESS FACTORS
-1. **Reference Algorithm Knowledge**: Use content from <CANONICAL_STAGES> to design stages
-2. **Preserve Mathematical Objects**: Respect <KEY_MATHEMATICAL_OBJECTS> in schemas
-3. **Structured Prompt Templates**: Use the exact prompt template structure specified above
-4. **Perfect Flow**: Ensure each stage's reads are available from prior stages
-5. **Validation Focus**: Include verification criteria in each prompt
-6. **Role Clarity**: Define specific expert role for each stage execution
-7. **Mathematical Rigor**: Embed algorithm knowledge into each prompt template
+1. **Base on Algorithm Knowledge**: Use <CANONICAL_STAGES> to design stage sequence
+2. **Input-Only Execution**: Stage prompts reference ONLY input data, no algorithmic theory
+3. **Preserve All Data**: Every variable from input must appear in every relevant stage
+4. **Simple Instructions**: Make each stage's task clear and data-focused
 
-The plan must be implementation-ready, algorithmically correct, and each prompt must be comprehensive with clear role definition, step-by-step instructions, and validation criteria.
+# EXECUTION PHILOSOPHY
+- **Planning Phase**: Use algorithm knowledge to design correct stage sequence
+- **Execution Phase**: Stage prompts focus purely on transforming input data
+- **No Algorithm Theory in Prompts**: Remove mathematical definitions from stage templates
+
+The plan must preserve all input variables and avoid algorithmic theory in execution prompts.
 """
         )
 
@@ -234,6 +211,57 @@ Focus on making the plan more executable, mathematically precise, and algorithmi
 """
         )
 
+        # Schema refiner for mandatory schema improvement
+        self.schema_refiner = Agent(
+            "openai:o3-mini",
+            output_type=Plan,
+            system_prompt="""
+# ROLE
+You are a schema compatibility specialist focused on ensuring data consistency across execution stages.
+
+# TASK
+Refine the schemas of a plan to ensure perfect compatibility between stages while preserving algorithmic correctness.
+
+# CRITICAL OBJECTIVES
+
+## Schema Consistency
+- **Format Compatibility**: Ensure stage outputs match next stage input expectations
+- **Entity Preservation**: Maintain all critical entities (variables, nodes, etc.) across pipeline
+- **Structure Consistency**: Use compatible data formats between connected stages
+
+## Entity Preservation Requirements
+- **Variables**: If algorithm works with variables (A, B, C, D, E), preserve them throughout
+- **Graph Structures**: Maintain consistent node/edge representations
+- **Mathematical Objects**: Preserve all algorithmic objects without loss
+
+## Data Format Standardization
+- **Graph Representations**: Use consistent format (adjacency list vs structured) across stages
+- **Entity References**: Ensure entities are referenced consistently in all schemas
+- **Schema Clarity**: Make schemas explicit about data structure and content
+
+# REFINEMENT PROCESS
+
+1. **Analyze Entity Flow**: Identify what entities/objects flow between stages
+2. **Standardize Formats**: Ensure compatible data formats across stage boundaries
+3. **Preserve Critical Data**: Guarantee no loss of algorithmic information
+4. **Validate Compatibility**: Ensure each stage output satisfies next stage input requirements
+
+# OUTPUT REQUIREMENTS
+- **Same Plan Structure**: Preserve all stages, reads/writes, and prompt templates
+- **Improved Schemas**: Only modify output_schema fields for compatibility
+- **Entity Preservation**: Ensure critical entities are maintained across all relevant stages
+- **Format Consistency**: Use consistent data formats between connected stages
+
+# CRITICAL SUCCESS FACTORS
+- All entities present in input must flow through to final stages (no entity loss)
+- Compatible data formats between all stage transitions
+- Schemas must be clear and executable by LLM agents
+- Preserve the algorithmic logic while improving technical compatibility
+
+Focus on making schemas technically compatible while maintaining perfect algorithmic fidelity.
+"""
+        )
+
     async def generate_iterative_plan(self,
                                     task_description: str,
                                     algorithm_knowledge: str,
@@ -258,6 +286,10 @@ Focus on making the plan more executable, mathematically precise, and algorithmi
                 print("🔧 Refining plan based on feedback...")
                 previous_feedback = iteration_history[-1]["feedback"]
                 current_plan = await self._refine_plan(current_plan, previous_feedback, algorithm_knowledge) # pyright: ignore[reportArgumentType]
+
+            # Always refine schemas for compatibility
+            print("🔧 Refining schemas for compatibility...")
+            current_plan = await self._refine_schemas(current_plan, algorithm_knowledge)
 
             # Evaluate the plan
             print("📊 Evaluating plan quality...")
@@ -363,6 +395,38 @@ Reference the <CANONICAL_STAGES> in the algorithm knowledge to ensure algorithmi
 """
 
         result = await self.plan_refiner.run(refinement_prompt)
+        return result.output
+
+    async def _refine_schemas(self, plan: Plan, algorithm_knowledge: str) -> Plan:
+        """Refine schemas for compatibility (always runs)"""
+
+        refinement_prompt = f"""
+# SCHEMA REFINEMENT REQUEST
+
+## CURRENT PLAN
+{json.dumps(plan.model_dump(), indent=2)}
+
+## ALGORITHM KNOWLEDGE REFERENCE
+{algorithm_knowledge}
+
+# YOUR TASK
+Refine the schemas in this plan to ensure perfect compatibility between stages while preserving algorithmic correctness.
+
+## FOCUS AREAS
+1. **Entity Preservation**: Ensure all variables/entities from the algorithm flow through all relevant stages
+2. **Format Consistency**: Use compatible data formats between connected stages
+3. **Schema Clarity**: Make schemas explicit and executable
+
+## CRITICAL REQUIREMENTS
+- Preserve all algorithmic entities (variables, nodes, etc.) throughout the pipeline
+- Use consistent data format patterns between stages
+- Ensure each stage output schema satisfies the next stage's input requirements
+- Only modify output_schema fields - preserve all other plan elements
+
+Generate a refined version of this plan with improved schema compatibility.
+"""
+
+        result = await self.schema_refiner.run(refinement_prompt)
         return result.output
 
     def _extract_score_from_feedback(self, feedback: str) -> float:

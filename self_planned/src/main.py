@@ -243,7 +243,7 @@ Analyze natural-language causal reasoning problems using the **Peter-Clark (PC) 
     initial_context = {"input": sample["input"]}
 
     try:
-        final_context = await run_plan(plan, initial_context, debug_logging=DEBUG_LOGGING)
+        final_context = await run_plan(plan, initial_context)
         final_key = plan.final_key or "result"
         final_result = final_context.get(final_key)
 
