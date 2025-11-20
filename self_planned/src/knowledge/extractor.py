@@ -338,6 +338,9 @@ CANONICAL STAGES:
 2. [Stage name]: [mathematical description]
 ...
 KEY MATHEMATICAL OBJECTS: [list the main data structures/objects manipulated]
+DATA FORMATS: [specify JSON structure for each mathematical object]
+- object_name: {"type": "object", "properties": {...}, "required": [...]}
+- another_object: {"type": "array", "items": {...}}
 
 Be precise and focus on the algorithmic structure, not explanations or applications.
 """,

@@ -331,6 +331,19 @@ async def run_simple_workflow(sample: pd.Series) -> Optional[Dict[str, Any]]:
     print("=" * 60)
 
     task_algorithm = "Peter-Clark (PC) Algorithm"
+#     task_description = """
+# Task: Given a natural-language input that contains a Premise and a Hypothesis, decide whether the Hypothesis is True or False under the Peter-Clark (PC) algorithm.
+
+# - PC is a constraint-based causal discovery method that infers a causal equivalence class (CPDAG) from observational (in)dependence information.
+# - Before deciding, reconstruct a global causal structure over all variables mentioned in the Premise; do NOT rely on pairwise or local checks.
+# - Return True only if the claim holds in every DAG in the Markov equivalence class implied by the Premise; otherwise return False.
+
+# Your plan must mirror the canonical PC algorithm. Reconstruct a global causal structure over all variables before deciding. Do not base the decision on a single pair or local cues. If your plan deviates from PC semantics, it is invalid.
+
+# Input available in context: 'input' (contains premise with variables, correlations, conditional independencies, and hypothesis).
+
+# CRITICAL OUTPUT FORMAT: The final stage must output ONLY a boolean value (true or false).
+# """
     task_description = """
 Task: Given a natural-language input that contains a Premise and a Hypothesis, decide whether the Hypothesis is True or False under the Peter-Clark (PC) algorithm.
 
@@ -338,11 +351,31 @@ Task: Given a natural-language input that contains a Premise and a Hypothesis, d
 - Before deciding, reconstruct a global causal structure over all variables mentioned in the Premise; do NOT rely on pairwise or local checks.
 - Return True only if the claim holds in every DAG in the Markov equivalence class implied by the Premise; otherwise return False.
 
-Your plan must mirror the canonical PC algorithm. Reconstruct a global causal structure over all variables before deciding. Do not base the decision on a single pair or local cues. If your plan deviates from PC semantics, it is invalid.
+ENVIRONMENT (VERY IMPORTANT):
+- You do NOT have a dataset and you MUST NOT propose to run new statistical CI tests.
+- All (in)dependence information is given EXPLICITLY in the Premise as text. Treat this as a PERFECT CI oracle.
+- The Premise will contain sentences like:
+    • "X correlates with Y"       → treat as: X and Y are dependent; there is an adjacency between X and Y.
+    • "X is independent of Y"    → treat as: X ⟂ Y | ∅.
+    • "X and Y are independent given Z" or
+      "X and Y are independent given Z and W and ..." 
+                                   → treat as: X ⟂ Y | {Z, W, ...}.
+- The Premise claims to list ALL relevant statistical relations among the variables. You must therefore:
+    • Trust that if an independence X ⟂ Y | S is stated, it is true.
+    • NOT invent independencies that are not mentioned.
+    • When the PC algorithm conceptually "calls" CI(X, Y | S), answer it by checking whether the Premise explicitly states
+      that X and Y are independent given exactly S (or ∅); otherwise treat them as dependent under that conditioning set.
+- Do NOT generate or enumerate arbitrary conditioning sets beyond those explicitly mentioned in the Premise. You may only rely on
+  the conditioning sets that appear in the text.
 
-Input available in context: 'input' (contains premise with variables, correlations, conditional independencies, and hypothesis).
+ALGORITHM REQUIREMENT:
+- Your plan must mirror the canonical Peter-Clark (PC) algorithm, and uses of CI(i, j | S) must be implemented via LOOKUP into the Premise as described above, not via new tests.
+- The decision MUST be based on the global causal structure (CPDAG) over all variables, not on a single pair or local cues.
 
-CRITICAL OUTPUT FORMAT: The final stage must output ONLY a boolean value (true or false).
+Input available in context: "input" (contains premise with variables, correlations, conditional independencies, and hypothesis).
+
+CRITICAL OUTPUT FORMAT:
+- The final stage must output ONLY a boolean value (true or false) as a single context key (e.g., "decision").
 """
 
     print("\n📚 STEP 1: Knowledge Extraction")

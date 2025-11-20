@@ -511,9 +511,16 @@ CRITICAL SCHEMA RULES:
 - The output_schema.properties keys MUST exactly match the writes array
 - NO EXCEPTIONS: writes and output_schema.properties must be perfectly aligned
 
+SCHEMA GENERATION GUIDELINES:
+- Use the DATA FORMATS section from the algorithm knowledge to generate detailed schemas
+- Replace generic {{"type": "object"}} with specific structures when DATA FORMATS provides them
+- For mathematical objects (graphs, sepsets, etc.), use the detailed structure from DATA FORMATS
+- If DATA FORMATS doesn't specify a structure, fall back to descriptive object schema
+
 CORRECT EXAMPLES:
 ✅ writes: ["skeleton"] → output_schema: {{"type": "object", "properties": {{"skeleton": {{"type": "object"}}}}, "required": ["skeleton"]}}
 ✅ writes: ["graph", "sepsets"] → output_schema: {{"type": "object", "properties": {{"graph": {{"type": "object"}}, "sepsets": {{"type": "object"}}}}, "required": ["graph", "sepsets"]}}
+✅ WITH DATA FORMATS: writes: ["graph"] → output_schema: {{"type": "object", "properties": {{"graph": {{"type": "object", "properties": {{"nodes": {{"type": "array", "items": {{"type": "string"}}}}, "edges": {{"type": "array", "items": {{"type": "array", "items": {{"type": "string"}}, "minItems": 2, "maxItems": 2}}}}}}, "required": ["nodes", "edges"]}}}}, "required": ["graph"]}}
 
 INCORRECT EXAMPLES:
 ❌ writes: ["skeleton"] + output_schema.properties: {{"graph": ..., "sepsets": ...}} // WRONG - mismatch
