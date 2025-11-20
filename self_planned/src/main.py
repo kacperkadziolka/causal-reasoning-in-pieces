@@ -13,7 +13,7 @@ from execute.executor import run_plan
 load_dotenv()
 
 # Configurable debug logging
-DEBUG_LOGGING = os.getenv('DEBUG_LOGGING', 'false').lower() in ('true', '1', 'yes')
+DEBUG_LOGGING = True
 
 
 def fetch_sample(csv_path: str) -> pd.Series:
@@ -25,7 +25,6 @@ def fetch_sample(csv_path: str) -> pd.Series:
     sample_idx = random.randint(0, len(df) - 1)
     sample = df.iloc[sample_idx]
 
-    print("\n=== SAMPLE FROM TEST DATASET ===")
     print(f"Index: {sample_idx}")
     print(f"Input: {sample['input']}")
     print(f"Label: {sample['label']}")
@@ -42,80 +41,81 @@ async def detect_algorithm(task_description: str) -> str:
     algorithm_detector = Agent(
         "openai:gpt-4o-mini",
         output_type=str,
-        system_prompt="""
-# ROLE
-You are an expert algorithm identification specialist with comprehensive knowledge of academic algorithms across all domains.
+        
+#         system_prompt="""
+# # ROLE
+# You are an expert algorithm identification specialist with comprehensive knowledge of academic algorithms across all domains.
 
-# TASK
-Extract the primary algorithm/method mentioned in task descriptions with high precision and academic accuracy.
+# # TASK
+# Extract the primary algorithm/method mentioned in task descriptions with high precision and academic accuracy.
 
-# ALGORITHM CATEGORIES TO CONSIDER
-## <CAUSAL_DISCOVERY>
-- Peter-Clark (PC), Fast Causal Inference (FCI), Greedy Equivalence Search (GES), Linear Non-Gaussian Acyclic Model (LiNGAM)
-</CAUSAL_DISCOVERY>
+# # ALGORITHM CATEGORIES TO CONSIDER
+# ## <CAUSAL_DISCOVERY>
+# - Peter-Clark (PC), Fast Causal Inference (FCI), Greedy Equivalence Search (GES), Linear Non-Gaussian Acyclic Model (LiNGAM)
+# </CAUSAL_DISCOVERY>
 
-## <GRAPH_ALGORITHMS>
-- Dijkstra, A*, Breadth-First Search (BFS), Depth-First Search (DFS), Floyd-Warshall, Bellman-Ford
-</GRAPH_ALGORITHMS>
+# ## <GRAPH_ALGORITHMS>
+# - Dijkstra, A*, Breadth-First Search (BFS), Depth-First Search (DFS), Floyd-Warshall, Bellman-Ford
+# </GRAPH_ALGORITHMS>
 
-## <MACHINE_LEARNING>
-- Gradient Descent, Stochastic Gradient Descent (SGD), K-Means, Support Vector Machine (SVM), Random Forest
-</MACHINE_LEARNING>
+# ## <MACHINE_LEARNING>
+# - Gradient Descent, Stochastic Gradient Descent (SGD), K-Means, Support Vector Machine (SVM), Random Forest
+# </MACHINE_LEARNING>
 
-## <OPTIMIZATION>
-- Genetic Algorithm (GA), Simulated Annealing, Particle Swarm Optimization (PSO), Branch and Bound
-</OPTIMIZATION>
+# ## <OPTIMIZATION>
+# - Genetic Algorithm (GA), Simulated Annealing, Particle Swarm Optimization (PSO), Branch and Bound
+# </OPTIMIZATION>
 
-## <SEARCH_ALGORITHMS>
-- Binary Search, Linear Search, Minimax, Alpha-Beta Pruning, Monte Carlo Tree Search (MCTS)
-</SEARCH_ALGORITHMS>
+# ## <SEARCH_ALGORITHMS>
+# - Binary Search, Linear Search, Minimax, Alpha-Beta Pruning, Monte Carlo Tree Search (MCTS)
+# </SEARCH_ALGORITHMS>
 
-# DETECTION RULES
+# # DETECTION RULES
 
-## Positive Identification Criteria
-- **Explicit mentions**: "using [algorithm name]", "apply [algorithm]", "based on [algorithm]"
-- **Academic references**: Standard algorithm names from academic literature
-- **Abbreviated forms**: Include both full name and common abbreviation when applicable
-- **Algorithm families**: Identify specific variant when mentioned (e.g., "SGD" vs "Gradient Descent")
+# ## Positive Identification Criteria
+# - **Explicit mentions**: "using [algorithm name]", "apply [algorithm]", "based on [algorithm]"
+# - **Academic references**: Standard algorithm names from academic literature
+# - **Abbreviated forms**: Include both full name and common abbreviation when applicable
+# - **Algorithm families**: Identify specific variant when mentioned (e.g., "SGD" vs "Gradient Descent")
 
-## Exclusion Criteria
-- **Generic terms**: "reasoning", "analysis", "method", "approach", "technique", "procedure"
-- **Domain descriptions**: "machine learning", "optimization", "search" without specific algorithm
-- **Process descriptions**: "training", "learning", "solving" without algorithmic specifics
+# ## Exclusion Criteria
+# - **Generic terms**: "reasoning", "analysis", "method", "approach", "technique", "procedure"
+# - **Domain descriptions**: "machine learning", "optimization", "search" without specific algorithm
+# - **Process descriptions**: "training", "learning", "solving" without algorithmic specifics
 
-# OUTPUT FORMAT
-Return the algorithm name exactly as it appears in academic literature:
-- **Include abbreviations** in parentheses when commonly used: "Peter-Clark (PC)"
-- **Use standard academic naming**: "Dijkstra" not "Dijkstra's algorithm"
-- **Preserve case sensitivity**: "A*" not "a*", "LiNGAM" not "lingam"
-- **Return "none"** if no specific algorithm is identified
+# # OUTPUT FORMAT
+# Return the algorithm name exactly as it appears in academic literature:
+# - **Include abbreviations** in parentheses when commonly used: "Peter-Clark (PC)"
+# - **Use standard academic naming**: "Dijkstra" not "Dijkstra's algorithm"
+# - **Preserve case sensitivity**: "A*" not "a*", "LiNGAM" not "lingam"
+# - **Return "none"** if no specific algorithm is identified
 
-# EXAMPLES
+# # EXAMPLES
 
-## <POSITIVE_EXAMPLES>
-- "decide whether the Hypothesis is True or False under the Peter-Clark (PC) algorithm" → "Peter-Clark (PC)"
-- "solve the shortest path problem using Dijkstra's algorithm" → "Dijkstra"
-- "optimize the parameters with gradient descent" → "Gradient Descent"
-- "apply A* search to find the optimal path" → "A*"
-- "use the Genetic Algorithm for optimization" → "Genetic Algorithm (GA)"
-</POSITIVE_EXAMPLES>
+# ## <POSITIVE_EXAMPLES>
+# - "decide whether the Hypothesis is True or False under the Peter-Clark (PC) algorithm" → "Peter-Clark (PC)"
+# - "solve the shortest path problem using Dijkstra's algorithm" → "Dijkstra"
+# - "optimize the parameters with gradient descent" → "Gradient Descent"
+# - "apply A* search to find the optimal path" → "A*"
+# - "use the Genetic Algorithm for optimization" → "Genetic Algorithm (GA)"
+# </POSITIVE_EXAMPLES>
 
-## <NEGATIVE_EXAMPLES>
-- "perform causal discovery analysis" → "none" (no specific algorithm)
-- "use machine learning techniques" → "none" (too generic)
-- "solve the optimization problem" → "none" (no specific algorithm)
-- "apply reasoning methods" → "none" (generic reasoning)
-</NEGATIVE_EXAMPLES>
+# ## <NEGATIVE_EXAMPLES>
+# - "perform causal discovery analysis" → "none" (no specific algorithm)
+# - "use machine learning techniques" → "none" (too generic)
+# - "solve the optimization problem" → "none" (no specific algorithm)
+# - "apply reasoning methods" → "none" (generic reasoning)
+# </NEGATIVE_EXAMPLES>
 
-# CRITICAL INSTRUCTIONS
-1. **Single algorithm focus**: Return only the PRIMARY algorithm mentioned
-2. **Academic precision**: Use exact academic naming conventions
-3. **Context awareness**: Consider the domain context when disambiguating
-4. **Abbreviation inclusion**: Add common abbreviations when standard practice
-5. **Conservative identification**: When uncertain, prefer "none" over guessing
+# # CRITICAL INSTRUCTIONS
+# 1. **Single algorithm focus**: Return only the PRIMARY algorithm mentioned
+# 2. **Academic precision**: Use exact academic naming conventions
+# 3. **Context awareness**: Consider the domain context when disambiguating
+# 4. **Abbreviation inclusion**: Add common abbreviations when standard practice
+# 5. **Conservative identification**: When uncertain, prefer "none" over guessing
 
-**OUTPUT**: Return only the algorithm name following the format rules above, no additional text or explanations.
-""",
+# **OUTPUT**: Return only the algorithm name following the format rules above, no additional text or explanations.
+# """,
     )
 
     result = await algorithm_detector.run(task_description)
@@ -129,50 +129,64 @@ async def run_enhanced_workflow(sample: pd.Series) -> Optional[Dict[str, Any]]:
     print("=" * 60)
 
     # Enhanced task description with concrete sample and algorithm-agnostic approach
-    task_description = f"""
-# TASK SPECIFICATION
-Analyze natural-language causal reasoning problems using the **Peter-Clark (PC) algorithm** to determine hypothesis validity.
+#     task_description = f"""
+# # TASK SPECIFICATION
+# Analyze natural-language causal reasoning problems using the **Peter-Clark (PC) algorithm** to determine hypothesis validity.
 
-## <INPUT_SPECIFICATION>
-**Available Context Key**: `input`
+# ## <INPUT_SPECIFICATION>
+# **Available Context Key**: `input`
 
-**Input Structure**: Natural language text containing:
-- **Premise**: Statistical relationships among variables (correlations, independencies, conditional independencies)
-- **Hypothesis**: A specific causal claim to be validated
+# **Input Structure**: Natural language text containing:
+# - **Premise**: Statistical relationships among variables (correlations, independencies, conditional independencies)
+# - **Hypothesis**: A specific causal claim to be validated
 
-## <CONCRETE_EXAMPLE>
-**Current Sample Input**:
-```
-{sample['input']}
-```
+# ## <CONCRETE_EXAMPLE>
+# **Current Sample Input**:
+# ```
+# {sample['input']}
+# ```
 
-**Expected Label**: {sample['label']} (where True=1, False=0)
-**Variables**: {sample['num_variables']} variables
-**Template Type**: {sample['template']}
+# **Expected Label**: {sample['label']} (where True=1, False=0)
+# **Variables**: {sample['num_variables']} variables
+# **Template Type**: {sample['template']}
 
-## <TASK_REQUIREMENTS>
-### Algorithm Application
-- Apply the **Peter-Clark (PC) algorithm** as specified in academic literature
-- Use the algorithm to analyze the causal relationships described in the premise
-- Determine whether the hypothesis is valid according to the algorithm's methodology
+# ## <TASK_REQUIREMENTS>
+# ### Algorithm Application
+# - Apply the **Peter-Clark (PC) algorithm** as specified in academic literature
+# - Use the algorithm to analyze the causal relationships described in the premise
+# - Determine whether the hypothesis is valid according to the algorithm's methodology
 
-### Decision Criteria
-- Return `true` if the hypothesis is supported by the algorithm's analysis
-- Return `false` if the hypothesis is not supported or contradicted
-- Apply rigorous mathematical reasoning as defined by the PC algorithm
+# ### Decision Criteria
+# - Return `true` if the hypothesis is supported by the algorithm's analysis
+# - Return `false` if the hypothesis is not supported or contradicted
+# - Apply rigorous mathematical reasoning as defined by the PC algorithm
 
-## <OUTPUT_SPECIFICATION>
-### Critical Requirements
-- **Final Output**: EXACTLY one boolean value (`true` or `false`)
-- **Output Key**: The final stage must write to a clearly defined output key
-- **Format**: Pure boolean value, no additional text or explanations
+# ## <OUTPUT_SPECIFICATION>
+# ### Critical Requirements
+# - **Final Output**: EXACTLY one boolean value (`true` or `false`)
+# - **Output Key**: The final stage must write to a clearly defined output key
+# - **Format**: Pure boolean value, no additional text or explanations
 
-### Success Criteria
-- Algorithmic correctness and fidelity to PC algorithm principles
-- Comprehensive analysis of all variables and relationships in the premise
-- Sound mathematical reasoning leading to the final decision
+# ### Success Criteria
+# - Algorithmic correctness and fidelity to PC algorithm principles
+# - Comprehensive analysis of all variables and relationships in the premise
+# - Sound mathematical reasoning leading to the final decision
 
-**OBJECTIVE**: Implement and execute the PC algorithm correctly to validate the given hypothesis against the provided premise.
+# **OBJECTIVE**: Implement and execute the PC algorithm correctly to validate the given hypothesis against the provided premise.
+# """
+
+    task_description = """
+Task: Given a natural-language input that contains a Premise and a Hypothesis, decide whether the Hypothesis is True or False under the Peter-Clark (PC) algorithm.
+
+- PC is a constraint-based causal discovery method that infers a causal equivalence class (CPDAG) from observational (in)dependence information.
+- Before deciding, reconstruct a global causal structure over all variables mentioned in the Premise; do NOT rely on pairwise or local checks.
+- Return True only if the claim holds in every DAG in the Markov equivalence class implied by the Premise; otherwise return False.
+
+Your plan must mirror the canonical PC algorithm. Reconstruct a global causal structure over all variables before deciding. Do not base the decision on a single pair or local cues. If your plan deviates from PC semantics, it is invalid.
+
+Input available in context: 'input' (contains premise with variables, correlations, conditional independencies, and hypothesis).
+
+CRITICAL OUTPUT FORMAT: The final stage must output ONLY a boolean value (true or false).
 """
 
     # Step 1: Algorithm Detection
@@ -299,6 +313,93 @@ Analyze natural-language causal reasoning problems using the **Peter-Clark (PC) 
         return None
 
 
+async def run_simple_workflow(sample: pd.Series) -> Optional[Dict[str, Any]]:
+    """
+    Run a simple workflow using backup functions for performance comparison.
+
+    This function uses the simple/lightweight versions of knowledge extraction
+    and planning to test performance differences against the enhanced workflow.
+
+    Args:
+        sample: A pandas Series containing the test sample data
+
+    Returns:
+        Dictionary with execution results or None if failed
+    """
+
+    print("\n🚀 SIMPLE WORKFLOW")
+    print("=" * 60)
+
+    task_algorithm = "Peter-Clark (PC) Algorithm"
+    task_description = """
+Task: Given a natural-language input that contains a Premise and a Hypothesis, decide whether the Hypothesis is True or False under the Peter-Clark (PC) algorithm.
+
+- PC is a constraint-based causal discovery method that infers a causal equivalence class (CPDAG) from observational (in)dependence information.
+- Before deciding, reconstruct a global causal structure over all variables mentioned in the Premise; do NOT rely on pairwise or local checks.
+- Return True only if the claim holds in every DAG in the Markov equivalence class implied by the Premise; otherwise return False.
+
+Your plan must mirror the canonical PC algorithm. Reconstruct a global causal structure over all variables before deciding. Do not base the decision on a single pair or local cues. If your plan deviates from PC semantics, it is invalid.
+
+Input available in context: 'input' (contains premise with variables, correlations, conditional independencies, and hypothesis).
+
+CRITICAL OUTPUT FORMAT: The final stage must output ONLY a boolean value (true or false).
+"""
+
+    print("\n📚 STEP 1: Knowledge Extraction")
+    print("-" * 30)
+    extractor = EnhancedKnowledgeExtractor()
+    knowledge = await extractor.extract_simple_knowledge(task_algorithm)
+    print(f"✅ Knowledge extracted: {knowledge}")
+
+    print("\n🔄 STEP 2: Planning")
+    print("-" * 30)
+    planner = IterativePlanner()
+    plan = await planner.generate_simple_plan(task_description=task_description, algorithm_knowledge=knowledge)
+    print(f"✅ Planning successful: {len(plan.stages)} stages")
+    print("📋 Plan structure:")
+    print(plan.model_dump_json(indent=2))
+
+    print("\n⚡ STEP 3: Execution")
+    print("-" * 30)
+    initial_context = {"input": sample["input"]}
+    final_context = await run_plan(plan, initial_context)
+    final_key = plan.final_key or "result"
+    final_result = final_context.get(final_key)
+
+    print("✅ Execution completed")
+    print(f"Final context: {final_context}")
+    print(f"🎯 Final result key: '{final_key}'")
+    print(f"📊 Final result: {final_result}")
+
+    print("\n📊 STEP 4: Evaluation")
+    print("-" * 30)
+    expected = bool(sample['label'])
+
+    # Convert final_result to boolean
+    if isinstance(final_result, str):
+        actual = final_result.lower() in ['true', '1', 'yes']
+    elif isinstance(final_result, int):
+        actual = bool(final_result)
+    else:
+        actual = bool(final_result)
+
+    is_correct = actual == expected
+
+    print(f"🎯 Predicted: {actual}")
+    print(f"📊 Expected: {expected}")
+    print(f"✅ Result: {'CORRECT' if is_correct else 'INCORRECT'}")
+
+    return {
+        "sample_idx": sample.name,
+        "knowledge_length": len(knowledge),
+        "num_stages": len(plan.stages),
+        "predicted": actual,
+        "expected": expected,
+        "is_correct": is_correct,
+        "final_context": final_context,
+    }
+
+
 async def main():
     """Enhanced main function"""
     print("🔬 ENHANCED SELF-PLANNED PIPELINE")
@@ -351,5 +452,40 @@ async def main():
     print("=" * 60)
 
 
+async def simple_main():
+    """
+    Simple main function using lightweight workflow for performance testing.
+
+    This function runs the simple workflow to compare performance and output
+    quality against the enhanced version. Useful for debugging performance
+    bottlenecks and testing the baseline approach.
+    """
+    print("🔬 SIMPLE SELF-PLANNED PIPELINE")
+    print("=" * 60)
+
+    # Load sample
+    csv_path = "../data/test_dataset.csv"
+    sample = fetch_sample(csv_path)
+
+    # Run simple workflow
+    result = await run_simple_workflow(sample)
+
+    # Final summary
+    print("\n" + "=" * 60)
+    print("📋 PIPELINE SUMMARY")
+    print("=" * 60)
+
+    if result:
+        print("✅ Workflow completed successfully!")
+        print(f"📚 Knowledge: {result['knowledge_length']} chars")
+        print(f"📝 Stages: {result['num_stages']}")
+        print(f"🎯 Prediction: {result['predicted']} (expected: {result['expected']})")
+        print(f"📊 Accuracy: {'✅ CORRECT' if result['is_correct'] else '❌ INCORRECT'}")
+    else:
+        print("❌ Workflow failed")
+
+    print("=" * 60)
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(simple_main())

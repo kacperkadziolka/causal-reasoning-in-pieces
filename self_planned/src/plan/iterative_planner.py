@@ -429,6 +429,144 @@ Generate a refined version of this plan with improved schema compatibility.
         result = await self.schema_refiner.run(refinement_prompt)
         return result.output
 
+    async def generate_simple_plan(self, task_description: str, algorithm_knowledge: str) -> Plan:
+        """
+        Generate a plan using a simple, single-request approach.
+
+        This is a backup method that creates a plan without iterative refinement,
+        designed for performance testing and scenarios where the iterative approach
+        may be too resource-intensive.
+
+        Args:
+            task_description: Description of the task to be planned
+            algorithm_knowledge: Canonical algorithm knowledge to base the plan on
+
+        Returns:
+            Simple plan generated in a single request
+        """
+        system_prompt = f"""
+You are a planning model that decomposes algorithmic tasks into stages.
+Return ONLY a JSON object that parses into the provided `Plan` type. Do not include prose, comments, or markdown.
+
+ALGORITHM KNOWLEDGE:
+{algorithm_knowledge}
+
+CRITICAL: Use this algorithmic knowledge to create stages that implement the canonical mathematical phases of the algorithm. Do NOT create generic reasoning stages like "parse input" or "evaluate hypothesis".
+
+Algorithmic Planning Guidelines:
+- Each stage should correspond to a specific algorithmic phase from the knowledge above
+- Stages should build mathematically on each other following the algorithm's structure
+- Output mathematical objects (graphs, matrices, sets, relations) as JSON structures
+- Each stage should implement one algorithmic transformation/computation
+- Use the exact terminology and concepts from the algorithm knowledge
+- Prefer number of stages matching the algorithm's natural mathematical decomposition
+
+Prompt Template Guidelines:
+- Create DETAILED, INFORMATIVE prompt templates that maximize execution quality
+- Include specific instructions on HOW to perform the algorithmic step
+- Mention potential edge cases, common pitfalls, and validation criteria
+- Provide clear guidance on expected input formats and output structures
+- Include mathematical definitions and constraints relevant to the step
+- Be comprehensive rather than concise - detailed prompts lead to better execution
+
+CRITICAL Prompt Template Structure:
+EVERY prompt_template MUST follow this exact pattern:
+
+```
+# TASK
+[Clear description of algorithmic step]
+
+# INPUT DATA
+{{input}}
+
+[Additional {{placeholder}} for any other reads keys]
+
+# STEP-BY-STEP
+1. [Specific instruction referencing the input data above]
+2. [Specific instruction referencing the input data above]
+3. [Specific instruction referencing the input data above]
+
+# OUTPUT
+Return JSON with the specified keys.
+```
+
+Contract:
+- Each stage defines:
+  - reads[]: context keys it expects (subset of keys available so far),
+  - writes[]: new/updated context keys it will produce (non-empty),
+  - prompt_template: detailed template that MUST include {{placeholder}} for EVERY key in reads[],
+  - output_schema: strict JSON Schema describing exactly the keys you write,
+- Context model:
+  - The initial context contains ONLY the keys named by the caller.
+  - After each stage, ONLY keys in writes[] may be added/updated in context.
+- Reads/writes discipline:
+  - reads[] must be a subset of available keys (initial keys ∪ prior writes).
+  - Every writes[] key MUST appear in the stage's output JSON (per output_schema).
+- The plan MUST set final_key to the context key that represents the final answer/result.
+- All stage outputs must be STRICT JSON (no extra text).
+
+CRITICAL SCHEMA RULES:
+- If writes: ["key1"] → output_schema must have properties: {{"key1": {{...}}}}
+- If writes: ["key1", "key2"] → output_schema must have properties: {{"key1": {{...}}, "key2": {{...}}}}
+- The output_schema.properties keys MUST exactly match the writes array
+- NO EXCEPTIONS: writes and output_schema.properties must be perfectly aligned
+
+CORRECT EXAMPLES:
+✅ writes: ["skeleton"] → output_schema: {{"type": "object", "properties": {{"skeleton": {{"type": "object"}}}}, "required": ["skeleton"]}}
+✅ writes: ["graph", "sepsets"] → output_schema: {{"type": "object", "properties": {{"graph": {{"type": "object"}}, "sepsets": {{"type": "object"}}}}, "required": ["graph", "sepsets"]}}
+
+INCORRECT EXAMPLES:
+❌ writes: ["skeleton"] + output_schema.properties: {{"graph": ..., "sepsets": ...}} // WRONG - mismatch
+❌ writes: ["result"] + output_schema.properties: {{"final_decision": ...}} // WRONG - different keys
+
+PROMPT TEMPLATE ALIGNMENT:
+- If writes: ["skeleton"] → prompt must say "Return JSON: {{\\"skeleton\\": {{...}}}}"
+- If writes: ["graph", "sepsets"] → prompt must say "Return JSON: {{\\"graph\\": ..., \\"sepsets\\": ...}}"
+"""
+
+        simple_planner = Agent("openai:o3-mini", output_type=Plan, system_prompt=system_prompt)
+
+        planning_prompt = f"Task: {task_description}"
+        result = await simple_planner.run(planning_prompt)
+
+        # Validate the generated plan
+        plan = result.output
+        self._validate_plan_templates(plan)
+
+        return plan
+
+    def _validate_plan_templates(self, plan: Plan) -> None:
+        """
+        Validate that all prompt templates properly use placeholders for their reads keys
+        and that output schemas match writes declarations.
+        Raises ValueError if validation fails.
+        """
+        import re
+
+        for stage in plan.stages:
+            # 1. Validate placeholder usage
+            placeholders = set(re.findall(r'\{(\w+)\}', stage.prompt_template))
+            missing_placeholders = set(stage.reads) - placeholders
+            if missing_placeholders:
+                raise ValueError(
+                    f"Stage '{stage.id}' is missing placeholders for reads keys: {missing_placeholders}. "
+                    f"Reads: {stage.reads}, Found placeholders: {placeholders}. "
+                    f"Each reads key must have a corresponding {{key}} placeholder in the prompt_template."
+                )
+
+            # 2. Validate schema-writes consistency
+            schema_keys = set(stage.output_schema.get('properties', {}).keys())
+            writes_keys = set(stage.writes)
+
+            if schema_keys != writes_keys:
+                raise ValueError(
+                    f"Stage '{stage.id}' has mismatched writes and output schema. "
+                    f"Writes: {stage.writes}, Schema properties: {list(schema_keys)}. "
+                    f"The output_schema.properties keys must exactly match the writes array."
+                )
+
+            print(f"✅ Validation passed for stage '{stage.id}': placeholders={placeholders}, schema_keys={schema_keys}")
+
     def _extract_score_from_feedback(self, feedback: str) -> float:
         """Extract the overall score from feedback text"""
         try:

@@ -309,3 +309,40 @@ Synthesize these three expert perspectives into a comprehensive, implementation-
         print(f"   📖 Final knowledge: {len(synthesis_result.output)} chars")
 
         return synthesis_result.output
+
+    async def extract_simple_knowledge(self, algorithm_name: str) -> str:
+        """
+        Extract algorithm knowledge using a simple, lightweight approach.
+
+        This is a backup method that uses a single agent with minimal prompting,
+        designed for performance testing and fallback scenarios when the enhanced
+        extraction method may be too resource-intensive.
+
+        Args:
+            algorithm_name: Name of the algorithm to extract knowledge for
+
+        Returns:
+            Simple canonical algorithm description with stages and key objects
+        """
+        knowledge_retriever = Agent(
+            "openai:o3-mini",
+            output_type=str,
+            system_prompt="""
+You are an algorithm expert. Provide the canonical mathematical stages/steps for the requested algorithm as they appear in academic literature.
+
+Format your response as:
+ALGORITHM: [name]
+DEFINITION: [brief mathematical definition]
+CANONICAL STAGES:
+1. [Stage name]: [mathematical description]
+2. [Stage name]: [mathematical description]
+...
+KEY MATHEMATICAL OBJECTS: [list the main data structures/objects manipulated]
+
+Be precise and focus on the algorithmic structure, not explanations or applications.
+""",
+        )
+
+        knowledge_prompt = f"Describe the canonical stages of {algorithm_name}"
+        result = await knowledge_retriever.run(knowledge_prompt)
+        return result.output
