@@ -474,17 +474,15 @@ EVERY prompt_template MUST follow this exact pattern:
 
 ```
 # TASK
-[Clear description of algorithmic step]
+[Clear description of algorithmic step referencing the input data below]
 
 # INPUT DATA
-{{input}}
-
-[Additional {{placeholder}} for any other reads keys]
+{{placeholder_for_each_read_key}}  (list each read key exactly once)
 
 # STEP-BY-STEP
-1. [Specific instruction referencing the input data above]
-2. [Specific instruction referencing the input data above]
-3. [Specific instruction referencing the input data above]
+1. [Specific instruction that refers to "the input data provided above"]
+2. [Specific instruction that refers to "the variables in the input data"]
+3. [Specific instruction that refers to "the relationships described in the input"]
 
 # OUTPUT
 Return JSON with the specified keys.

@@ -82,6 +82,35 @@ Do not include explanations, markdown, or additional text - only the raw JSON.
     return executor
 
 
+def preprocess_template(template: str, read_data: Dict[str, Any]) -> str:
+    """Preprocess template to avoid input repetition by replacing subsequent placeholder references"""
+    import re
+
+    # For each read key, keep the first occurrence in INPUT DATA section
+    # Replace subsequent occurrences with reference text
+    for key in read_data.keys():
+        pattern = f'{{{key}}}'
+
+        # Find all occurrences
+        occurrences = [m.start() for m in re.finditer(re.escape(pattern), template)]
+
+        if len(occurrences) > 1:
+            # Find the INPUT DATA section
+            input_data_pos = template.find('# INPUT DATA')
+
+            # Keep the first occurrence after INPUT DATA, replace others
+            first_after_input = None
+            for pos in occurrences:
+                if pos > input_data_pos:
+                    if first_after_input is None:
+                        first_after_input = pos
+                    else:
+                        # Replace this occurrence with reference text
+                        template = template[:pos] + f'the data in {key}' + template[pos + len(pattern):]
+
+    return template
+
+
 async def run_stage(stage: Stage, context: Dict[str, Any], debug_logging: bool = False) -> Dict[str, Any]:
     import time
 
@@ -101,8 +130,11 @@ async def run_stage(stage: Stage, context: Dict[str, Any], debug_logging: bool =
 
     # Render the prompt template with the read data
     try:
+        # Preprocess template to avoid input repetition
+        processed_template = preprocess_template(stage.prompt_template, read_data)
+
         # First, escape any braces that aren't actual placeholders
-        escaped_template = stage.prompt_template
+        escaped_template = processed_template
 
         # Find all placeholders that should be replaced (those that match keys in read_data)
         import re
