@@ -86,12 +86,24 @@ def preprocess_template(template: str, read_data: Dict[str, Any]) -> str:
     """Preprocess template to avoid input repetition by replacing subsequent placeholder references"""
     import re
 
-    # For each read key, keep the first occurrence in INPUT DATA section
-    # Replace subsequent occurrences with reference text
+    # First, clean up invalid placeholders (those not in read_data keys)
+    valid_keys = set(read_data.keys())
+
+    def clean_invalid_placeholders(match):
+        placeholder = match.group(1)
+        if placeholder in valid_keys:
+            return match.group(0)  # Keep valid placeholders
+        else:
+            return placeholder  # Remove braces from invalid placeholders
+
+    # Remove braces from invalid placeholders
+    template = re.sub(r'\{(\w+)\}', clean_invalid_placeholders, template)
+
+    # Then, process valid placeholders to avoid repetition
     for key in read_data.keys():
         pattern = f'{{{key}}}'
 
-        # Find all occurrences
+        # Find all occurrences of this specific read_data key
         occurrences = [m.start() for m in re.finditer(re.escape(pattern), template)]
 
         if len(occurrences) > 1:

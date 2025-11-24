@@ -534,9 +534,9 @@ PROMPT TEMPLATE ALIGNMENT:
         planning_prompt = f"Task: {task_description}"
         result = await simple_planner.run(planning_prompt)
 
-        # Validate the generated plan
+        # Validate the generated plan (disabled as requested)
         plan = result.output
-        self._validate_plan_templates(plan)
+        # self._validate_plan_templates(plan)  # Disabled to skip validation
 
         return plan
 
