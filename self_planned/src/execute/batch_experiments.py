@@ -9,7 +9,7 @@ import pandas as pd
 import numpy as np
 from dotenv import load_dotenv
 
-from main import run_enhanced_workflow
+from main import run_simple_workflow
 
 load_dotenv()
 
@@ -40,12 +40,6 @@ class ExperimentResult:
     execution_time: float
     num_stages: int
     error: Optional[str] = None
-    # Enhanced logging fields
-    plan_json: Optional[str] = None
-    stage_details: Optional[str] = None
-    stage_prompts: Optional[str] = None
-    intermediate_outputs: Optional[str] = None
-    final_context: Optional[str] = None
 
 
 @dataclass
@@ -127,8 +121,8 @@ class BatchExperimentRunner:
                 raise ValueError("Dataset not loaded")
             sample = self.dataset.iloc[sample_idx]
 
-            # Run the experiment
-            result = await run_enhanced_workflow(sample)
+            # Run the simple workflow
+            result = await run_simple_workflow(sample)
             execution_time = time.time() - start_time
 
             if result is None:
@@ -140,40 +134,8 @@ class BatchExperimentRunner:
                     is_correct=False,
                     execution_time=execution_time,
                     num_stages=0,
-                    error="Workflow failed to generate result",
-                    plan_json=None,
-                    stage_details=None,
-                    stage_prompts=None,
-                    intermediate_outputs=None,
-                    final_context=None
+                    error="Workflow failed to generate result"
                 )
-
-            # Extract enhanced information
-            plan_dict = result.get('plan_summary', {})
-            final_context = result.get('final_context', {})
-
-            # Serialize plan and stage information
-            plan_json = json.dumps(plan_dict) if plan_dict else None
-
-            # Extract stage details and prompts from enhanced workflow
-            stage_details = []
-            stage_prompts = []
-            if 'stages' in plan_dict:
-                for i, stage in enumerate(plan_dict['stages'], 1):
-                    stage_details.append(f"Stage {i}: {stage.get('id', 'unknown')} | Reads: {stage.get('reads', [])} | Writes: {stage.get('writes', [])}")
-                    prompt_template = stage.get('prompt_template', 'No prompt available')
-                    # Keep full prompts for analysis - truncate only if extremely long
-                    if len(prompt_template) > 2000:
-                        truncated_prompt = prompt_template[:2000] + "... (truncated for length)"
-                    else:
-                        truncated_prompt = prompt_template
-                    stage_prompts.append(f"Stage {i} Prompt:\n{truncated_prompt}\n")
-
-            # Extract intermediate outputs (context keys and their values)
-            intermediate_outputs = []
-            for key, value in final_context.items():
-                if key != 'input':  # Skip the input as it's already captured
-                    intermediate_outputs.append(f"{key}: {str(value)}")
 
             return ExperimentResult(
                 sample_idx=sample_idx,
@@ -182,13 +144,8 @@ class BatchExperimentRunner:
                 predicted=result['predicted'],
                 is_correct=result['is_correct'],
                 execution_time=execution_time,
-                num_stages=len(result['plan_summary']['stages']) if 'plan_summary' in result else 0,
-                error=None,
-                plan_json=plan_json,
-                stage_details="\n".join(stage_details) if stage_details else None,
-                stage_prompts="\n".join(stage_prompts) if stage_prompts else None,
-                intermediate_outputs="\n".join(intermediate_outputs) if intermediate_outputs else None,
-                final_context=json.dumps(final_context) if final_context else None
+                num_stages=result.get('num_stages', 0),
+                error=None
             )
 
         except Exception as e:
@@ -201,12 +158,7 @@ class BatchExperimentRunner:
                 is_correct=False,
                 execution_time=execution_time,
                 num_stages=0,
-                error=str(e),
-                plan_json=None,
-                stage_details=None,
-                stage_prompts=None,
-                intermediate_outputs=None,
-                final_context=None
+                error=str(e)
             )
 
     def print_progress(self, current: int, total: int, result: ExperimentResult) -> None:
