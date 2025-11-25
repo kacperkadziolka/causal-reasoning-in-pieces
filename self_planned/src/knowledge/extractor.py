@@ -310,7 +310,7 @@ Synthesize these three expert perspectives into a comprehensive, implementation-
 
         return synthesis_result.output
 
-    async def extract_simple_knowledge(self, algorithm_name: str) -> str:
+    async def extract_simple_knowledge(self, algorithm_name: str, dataset_sample: str) -> str:
         """
         Extract algorithm knowledge using a simple, lightweight approach.
 
@@ -320,6 +320,7 @@ Synthesize these three expert perspectives into a comprehensive, implementation-
 
         Args:
             algorithm_name: Name of the algorithm to extract knowledge for
+            dataset_sample: Dataset sample to ground algorithm descriptions with concrete examples
 
         Returns:
             Simple canonical algorithm description with stages and key objects
@@ -327,8 +328,14 @@ Synthesize these three expert perspectives into a comprehensive, implementation-
         knowledge_retriever = Agent(
             "openai:o3-mini",
             output_type=str,
-            system_prompt="""
+            system_prompt=f"""
 You are an algorithm expert. Provide the canonical mathematical stages/steps for the requested algorithm as they appear in academic literature.
+
+DATASET CONTEXT:
+Your algorithm will work with data like this sample:
+"{dataset_sample}"
+
+Note: Use variable names from the actual dataset rather than abstract notation in your descriptions and examples.
 
 Format your response as:
 ALGORITHM: [name]
@@ -338,11 +345,11 @@ CANONICAL STAGES:
 2. [Stage name]: [mathematical description]
 ...
 KEY MATHEMATICAL OBJECTS: [list the main data structures/objects manipulated]
-DATA FORMATS: [specify JSON structure for each mathematical object]
-- object_name: {"type": "object", "properties": {...}, "required": [...]}
-- another_object: {"type": "array", "items": {...}}
+DATA FORMATS: [specify JSON structure for each mathematical object using concrete examples]
+- object_name: {{"type": "object", "properties": {{...}}, "required": [...]}}
+- another_object: {{"type": "array", "items": {{...}}}}
 
-Be precise and focus on the algorithmic structure, not explanations or applications.
+Be precise and focus on the algorithmic structure using concrete variable names from the dataset.
 """,
         )
 

@@ -390,7 +390,7 @@ CRITICAL OUTPUT FORMAT:
     print("\n📚 STEP 1: Knowledge Extraction")
     print("-" * 30)
     extractor = EnhancedKnowledgeExtractor()
-    knowledge = await extractor.extract_simple_knowledge(task_algorithm)
+    knowledge = await extractor.extract_simple_knowledge(task_algorithm, sample["input"])
     print(f"✅ Knowledge extracted: {knowledge}")
 
     print("\n🔄 STEP 2: Planning")

@@ -477,7 +477,9 @@ EVERY prompt_template MUST follow this exact pattern:
 [Clear description of algorithmic step - DO NOT include data placeholders here]
 
 # INPUT DATA
-{{placeholder_for_each_read_key}}  (list each read key exactly once - ONLY place for placeholders)
+{{read_key_1}}
+{{read_key_2}}
+[... one placeholder line for EACH key in the reads array]
 
 # STEP-BY-STEP
 1. [Reference "the data provided above" - never use {{placeholders}} here]
@@ -487,6 +489,12 @@ EVERY prompt_template MUST follow this exact pattern:
 # OUTPUT
 Return JSON with the specified keys.
 ```
+
+CRITICAL PLACEHOLDER GENERATION RULE:
+- The INPUT DATA section must have EXACTLY one {{placeholder}} line for each key in reads[]
+- If reads: ["graph", "sepsets"] → INPUT DATA must have both {{graph}} and {{sepsets}}
+- If reads: ["input"] → INPUT DATA must have {{input}}
+- NO EXCEPTIONS: Every reads key must have a corresponding placeholder
 
 CRITICAL RULES FOR PLACEHOLDER USAGE:
 - Placeholders ({{key}}) ONLY appear in the "# INPUT DATA" section
@@ -536,13 +544,23 @@ PROMPT TEMPLATE ALIGNMENT:
 - If writes: ["graph", "sepsets"] → prompt must say "Return JSON: {{\\"graph\\": ..., \\"sepsets\\": ...}}"
 """
 
+        # Debug logging for system prompt
+        print("🔍 DEBUG - SYSTEM PROMPT SENT TO PLANNING LLM:")
+        print("=" * 80)
+        print(system_prompt)
+        print("=" * 80)
+
         simple_planner = Agent("openai:o3-mini", output_type=Plan, system_prompt=system_prompt)
 
-        planning_prompt = f"Task: {task_description}"
-        result = await simple_planner.run(planning_prompt)
+        # Debug logging for user prompt
+        print("🔍 DEBUG - USER PROMPT SENT TO PLANNING LLM:")
+        print("=" * 80)
+        print(task_description)
+        print("=" * 80)
 
-        # Validate the generated plan (disabled as requested)
+        result = await simple_planner.run(task_description)
         plan = result.output
+        # Validate the generated plan (disabled as requested)
         # self._validate_plan_templates(plan)  # Disabled to skip validation
 
         return plan
