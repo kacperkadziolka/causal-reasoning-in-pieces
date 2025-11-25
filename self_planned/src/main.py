@@ -1,5 +1,6 @@
 import asyncio
 import os
+import argparse
 from typing import Any, Optional, Dict
 from dotenv import load_dotenv
 import pandas as pd
@@ -16,16 +17,24 @@ load_dotenv()
 DEBUG_LOGGING = True
 
 
-def fetch_sample(csv_path: str) -> pd.Series:
-    """Fetch a random sample from the dataset"""
+def fetch_sample(csv_path: str, sample_idx: Optional[int] = None) -> pd.Series:
+    """Fetch a sample from the dataset by index or random if not specified"""
     df = pd.read_csv(csv_path)
     print(f"Dataset loaded: {len(df)} samples")
 
-    # Get a random sample
-    sample_idx = random.randint(0, len(df) - 1)
-    sample = df.iloc[sample_idx]
+    # Get specified sample or random sample
+    if sample_idx is not None:
+        if sample_idx < 0 or sample_idx >= len(df):
+            raise ValueError(f"Sample index {sample_idx} out of range (0-{len(df)-1})")
+        actual_idx = sample_idx
+        print(f"Using specified index: {actual_idx}")
+    else:
+        actual_idx = random.randint(0, len(df) - 1)
+        print(f"Using random index: {actual_idx}")
 
-    print(f"Index: {sample_idx}")
+    sample = df.iloc[actual_idx]
+
+    print(f"Index: {actual_idx}")
     print(f"Input: {sample['input']}")
     print(f"Label: {sample['label']}")
     print(f"Num Variables: {sample['num_variables']}")
@@ -433,7 +442,7 @@ CRITICAL OUTPUT FORMAT:
     }
 
 
-async def main():
+async def main(sample_idx: Optional[int] = None):
     """Enhanced main function"""
     print("🔬 ENHANCED SELF-PLANNED PIPELINE")
     print("=" * 60)
@@ -444,7 +453,7 @@ async def main():
 
     # Load sample
     csv_path = "../data/test_dataset.csv"
-    sample = fetch_sample(csv_path)
+    sample = fetch_sample(csv_path, sample_idx)
 
     # Run enhanced workflow
     result = await run_enhanced_workflow(sample)
@@ -485,7 +494,7 @@ async def main():
     print("=" * 60)
 
 
-async def simple_main():
+async def simple_main(sample_idx: Optional[int] = None):
     """
     Simple main function using lightweight workflow for performance testing.
 
@@ -498,7 +507,7 @@ async def simple_main():
 
     # Load sample
     csv_path = "../data/test_dataset.csv"
-    sample = fetch_sample(csv_path)
+    sample = fetch_sample(csv_path, sample_idx)
 
     # Run simple workflow
     result = await run_simple_workflow(sample)
@@ -521,4 +530,14 @@ async def simple_main():
 
 
 if __name__ == "__main__":
-    asyncio.run(simple_main())
+    parser = argparse.ArgumentParser(description="Run self-planned pipeline on specific dataset samples")
+    parser.add_argument("--sample-idx", type=int, default=1060, help="Specific sample index to test")
+
+    args = parser.parse_args()
+
+    if args.sample_idx is not None:
+        print(f"🎯 Testing sample index: {args.sample_idx}")
+    else:
+        print("🎯 Using random sample")
+
+    asyncio.run(simple_main(args.sample_idx))

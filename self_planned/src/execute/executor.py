@@ -86,39 +86,63 @@ def preprocess_template(template: str, read_data: Dict[str, Any]) -> str:
     """Preprocess template to avoid input repetition by replacing subsequent placeholder references"""
     import re
 
-    # First, clean up invalid placeholders (those not in read_data keys)
+    # Get valid keys from read_data
     valid_keys = set(read_data.keys())
 
+    # First, clean up invalid placeholders (those not in read_data keys)
     def clean_invalid_placeholders(match):
         placeholder = match.group(1)
         if placeholder in valid_keys:
-            return match.group(0)  # Keep valid placeholders
+            return match.group(0)  # Keep valid placeholders intact
         else:
             return placeholder  # Remove braces from invalid placeholders
 
-    # Remove braces from invalid placeholders
+    # Remove braces from invalid placeholders only
     template = re.sub(r'\{(\w+)\}', clean_invalid_placeholders, template)
 
     # Then, process valid placeholders to avoid repetition
-    for key in read_data.keys():
+    for key in valid_keys:
         pattern = f'{{{key}}}'
 
         # Find all occurrences of this specific read_data key
-        occurrences = [m.start() for m in re.finditer(re.escape(pattern), template)]
+        occurrences = []
+        for match in re.finditer(re.escape(pattern), template):
+            occurrences.append((match.start(), match.end()))
 
         if len(occurrences) > 1:
             # Find the INPUT DATA section
             input_data_pos = template.find('# INPUT DATA')
 
-            # Keep the first occurrence after INPUT DATA, replace others
-            first_after_input = None
-            for pos in occurrences:
-                if pos > input_data_pos:
-                    if first_after_input is None:
-                        first_after_input = pos
+            if input_data_pos >= 0:
+                # Strategy: Keep ONLY the first occurrence in INPUT DATA section, replace ALL others
+                first_in_input_data = None
+                replacements = []
+
+                for start, end in occurrences:
+                    if start > input_data_pos:
+                        # This is after INPUT DATA section
+                        if first_in_input_data is None:
+                            first_in_input_data = (start, end)  # Keep this one
+                        else:
+                            # Replace this occurrence
+                            replacements.append((start, end, f'the data provided above'))
                     else:
-                        # Replace this occurrence with reference text
-                        template = template[:pos] + f'the data in {key}' + template[pos + len(pattern):]
+                        # This is before INPUT DATA section (e.g., in TASK), replace it
+                        replacements.append((start, end, f'the input data'))
+
+                # Apply replacements in reverse order to maintain positions
+                for start, end, replacement in reversed(replacements):
+                    template = template[:start] + replacement + template[end:]
+
+            else:
+                # No INPUT DATA section found, replace all but the first occurrence
+                replacements = []
+                for i, (start, end) in enumerate(occurrences[1:], 1):
+                    replacements.append((start, end, f'the input data'))
+
+                # Apply replacements in reverse order to maintain positions
+                for start, end, replacement in reversed(replacements):
+                    template = template[:start] + replacement + template[end:]
 
     return template
 

@@ -474,19 +474,26 @@ EVERY prompt_template MUST follow this exact pattern:
 
 ```
 # TASK
-[Clear description of algorithmic step referencing the input data below]
+[Clear description of algorithmic step - DO NOT include data placeholders here]
 
 # INPUT DATA
-{{placeholder_for_each_read_key}}  (list each read key exactly once)
+{{placeholder_for_each_read_key}}  (list each read key exactly once - ONLY place for placeholders)
 
 # STEP-BY-STEP
-1. [Specific instruction that refers to "the input data provided above"]
-2. [Specific instruction that refers to "the variables in the input data"]
-3. [Specific instruction that refers to "the relationships described in the input"]
+1. [Reference "the data provided above" - never use {{placeholders}} here]
+2. [Reference "the variables mentioned in the input" - never use {{placeholders}} here]
+3. [Reference "the relationships described in the input" - never use {{placeholders}} here]
 
 # OUTPUT
 Return JSON with the specified keys.
 ```
+
+CRITICAL RULES FOR PLACEHOLDER USAGE:
+- Placeholders ({{key}}) ONLY appear in the "# INPUT DATA" section
+- Task descriptions must NEVER contain {{placeholders}}
+- Step instructions must NEVER contain {{placeholders}}
+- Use descriptive references like "the data provided above" instead of {{placeholders}}
+- Each placeholder can only appear ONCE in the entire template
 
 Contract:
 - Each stage defines:
