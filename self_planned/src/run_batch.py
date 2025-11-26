@@ -65,7 +65,7 @@ def parse_args():
         "--sample-indices", "-si",
         type=str,
         help="Path to JSON file containing specific sample indices to run",
-        default="../indices/sample_indices_batch_exp_20251125_222142_results.json"
+        default="indices/sample_indices_batch_exp_20251125_222142_results.json"
     )
 
     return parser.parse_args()
