@@ -26,6 +26,7 @@ class ExperimentConfig:
     save_summary: bool = True
     random_seed: Optional[int] = None
     max_concurrent: int = 10  # Maximum concurrent experiments
+    sample_indices: Optional[List[int]] = None  # Specific sample indices to run
 
 
 @dataclass
@@ -101,10 +102,16 @@ class BatchExperimentRunner:
         return requested_size
 
     def sample_indices(self, batch_size: int) -> List[int]:
-        """Sample indices without replacement."""
+        """Sample indices without replacement or use specific indices if provided."""
         if self.dataset is None:
             raise ValueError("Dataset not loaded. Call load_dataset() first.")
 
+        # If specific sample indices are provided, use them
+        if self.config.sample_indices is not None:
+            print(f"📋 Using provided sample indices ({len(self.config.sample_indices)} samples)")
+            return sorted(self.config.sample_indices)
+
+        # Otherwise, sample randomly as before
         if self.config.random_seed is not None:
             np.random.seed(self.config.random_seed)
 

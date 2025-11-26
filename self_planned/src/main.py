@@ -396,7 +396,7 @@ CRITICAL OUTPUT FORMAT:
     print("\n🔄 STEP 2: Planning")
     print("-" * 30)
     planner = IterativePlanner()
-    plan = await planner.generate_simple_plan(task_description=task_description, algorithm_knowledge=knowledge)
+    plan = await planner.generate_two_stage_plan(task_description=task_description, algorithm_knowledge=knowledge)
     print(f"✅ Planning successful: {len(plan.stages)} stages")
     print("📋 Plan structure:")
     print(plan.model_dump_json(indent=2))
@@ -531,7 +531,7 @@ async def simple_main(sample_idx: Optional[int] = None):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run self-planned pipeline on specific dataset samples")
-    parser.add_argument("--sample-idx", type=int, default=1060, help="Specific sample index to test")
+    parser.add_argument("--sample-idx", type=int, default=175, help="Specific sample index to test")
 
     args = parser.parse_args()
 

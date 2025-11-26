@@ -565,6 +565,163 @@ PROMPT TEMPLATE ALIGNMENT:
 
         return plan
 
+    async def generate_two_stage_plan(self, task_description: str, algorithm_knowledge: str) -> Plan:
+        """
+        Generate a plan using two-stage approach to reduce cognitive load.
+
+        Stage 1: Algorithm Analysis & Data Flow Design
+        Stage 2: Stage Implementation using data flow design
+        """
+        print("🔍 TWO-STAGE PLANNING - Starting Stage 1: Algorithm Analysis...")
+
+        # Stage 1: Algorithm Analysis & Data Flow Design
+        analysis_agent = Agent("openai:o3-mini", output_type=str, system_prompt="""
+You are an algorithm analysis specialist focused on extracting data flow requirements.
+
+Your task: Analyze algorithm knowledge and identify critical data dependencies that must be preserved in a multi-stage implementation.
+
+Focus on:
+1. What mathematical objects are created/modified at each algorithmic phase
+2. What data must flow between phases for the algorithm to work correctly
+3. Critical dependencies that cannot be omitted (like separation sets in causal discovery)
+
+Return structured analysis in this format:
+
+## ALGORITHMIC PHASES
+1. phase_name: mathematical purpose and operations
+2. phase_name: mathematical purpose and operations
+...
+
+## MATHEMATICAL OBJECTS
+- object_name: description, when created, when needed
+
+## CRITICAL DATA FLOWS
+- object_name: created_in_phase → required_by_phase (reason why)
+
+## MANDATORY OUTPUTS
+phase_name: must_output [list of objects]
+
+Be thorough - missing critical data flows will break the algorithm implementation.
+""")
+
+        analysis_prompt = f"""
+Analyze this algorithm knowledge and extract data flow requirements:
+
+ALGORITHM KNOWLEDGE:
+{algorithm_knowledge}
+
+TASK CONTEXT:
+{task_description}
+
+Focus on identifying what data must flow between algorithmic phases to implement this correctly.
+"""
+
+        analysis_result = await analysis_agent.run(analysis_prompt)
+        analysis = analysis_result.output
+
+        print("✅ Stage 1 completed - Algorithm analysis")
+        print("🔄 TWO-STAGE PLANNING - Starting Stage 2: Stage Implementation...")
+
+        # Debug: Show the analysis
+        print("🔍 DEBUG - ALGORITHM ANALYSIS:")
+        print("=" * 60)
+        print(analysis)
+        print("=" * 60)
+
+        # Stage 2: Stage Implementation using analysis
+        implementation_prompt = f"""
+Generate a complete Plan using this algorithm analysis:
+
+ALGORITHM KNOWLEDGE:
+{algorithm_knowledge}
+
+ALGORITHM ANALYSIS:
+{analysis}
+
+TASK: {task_description}
+
+Use the CRITICAL DATA FLOWS from the analysis to ensure correct reads/writes for each stage.
+Every object mentioned in MANDATORY OUTPUTS must appear in the writes[] of the appropriate stage.
+Every dependency in CRITICAL DATA FLOWS must be preserved in reads/writes.
+
+CRITICAL DATA INCLUSION RULES:
+- Only include 'input' in reads[] when the stage needs to read from the original task description
+- Pure mathematical transformation stages should work only with mathematical objects
+- Guidelines:
+  * Input extraction stages: need 'input' (extract data from original description)
+  * Data recording stages: may need 'input' (reference original conditions)
+  * Pure mathematical transformation stages: work only with mathematical objects (graphs, matrices, etc.)
+  * Final evaluation stages: need 'input' (to check against original task) + final mathematical objects
+
+CRITICAL PLACEHOLDER RULE:
+- INPUT DATA section must have EXACTLY one {{placeholder}} for each key in reads[]
+- If reads: ["graph", "sepsets"] → INPUT DATA must have {{graph}} and {{sepsets}}
+- NO EXCEPTIONS
+
+Generate stages that implement the algorithmic phases with proper data flow preservation and minimal data inclusion.
+"""
+
+        # Use existing implementation logic but with analysis guidance
+        current_system_prompt = f"""
+You are a planning model that implements algorithmic stages using data flow analysis.
+Return ONLY a JSON object that parses into the provided `Plan` type. Do not include prose, comments, or markdown.
+
+CRITICAL: Use the algorithm analysis to ensure all mandatory data flows are preserved.
+
+[Include all the existing prompt template and schema rules here...]
+
+CRITICAL Prompt Template Structure:
+EVERY prompt_template MUST follow this exact pattern:
+
+```
+# TASK
+[Clear description of algorithmic step - DO NOT include data placeholders here]
+
+# INPUT DATA
+{{read_key_1}}
+{{read_key_2}}
+[... one placeholder line for EACH key in the reads array]
+
+# STEP-BY-STEP
+1. [Reference "the data provided above" - never use {{placeholders}} here]
+2. [Reference "the variables mentioned in the input" - never use {{placeholders}} here]
+3. [Reference "the relationships described in the input" - never use {{placeholders}} here]
+
+# OUTPUT
+Return JSON with the specified keys.
+```
+
+CRITICAL PLACEHOLDER GENERATION RULE:
+- The INPUT DATA section must have EXACTLY one {{placeholder}} line for each key in reads[]
+- If reads: ["graph", "sepsets"] → INPUT DATA must have both {{graph}} and {{sepsets}}
+- If reads: ["input"] → INPUT DATA must have {{input}}
+- NO EXCEPTIONS: Every reads key must have a corresponding placeholder
+
+Contract:
+- Each stage defines:
+  - reads[]: context keys it expects (subset of keys available so far),
+  - writes[]: new/updated context keys it will produce (non-empty),
+  - prompt_template: detailed template that MUST include {{placeholder}} for EVERY key in reads[],
+  - output_schema: strict JSON Schema describing exactly the keys you write,
+- The plan MUST set final_key to the context key that represents the final answer/result.
+- All stage outputs must be STRICT JSON (no extra text).
+"""
+
+        stage_implementation_agent = Agent("openai:o3-mini", output_type=Plan, system_prompt=current_system_prompt)
+
+        result = await stage_implementation_agent.run(implementation_prompt)
+        plan = result.output
+
+        print("✅ Stage 2 completed - Stage implementation")
+        print(f"📋 Generated plan with {len(plan.stages)} stages")
+
+        # Debug: Show data flow preservation
+        print("🔍 DEBUG - GENERATED PLAN DATA FLOW:")
+        for stage in plan.stages:
+            print(f"  {stage.id}: {stage.reads} → {stage.writes}")
+
+        return plan
+
     def _validate_plan_templates(self, plan: Plan) -> None:
         """
         Validate that all prompt templates properly use placeholders for their reads keys

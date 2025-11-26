@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import json
 from pathlib import Path
 
 from execute.batch_experiments import BatchExperimentRunner, ExperimentConfig
@@ -11,7 +12,7 @@ def parse_args():
     parser.add_argument(
         "--batch-size", "-b",
         type=int,
-        default=3,
+        default=100,
         help="Number of experiments to run (max: dataset size)"
     )
 
@@ -60,6 +61,13 @@ def parse_args():
         help="Don't save summary JSON"
     )
 
+    parser.add_argument(
+        "--sample-indices", "-si",
+        type=str,
+        help="Path to JSON file containing specific sample indices to run",
+        default="./indices/batch_exp_20251125_222142_results.csv"
+    )
+
     return parser.parse_args()
 
 
@@ -73,6 +81,29 @@ async def main():
         print("📁 Make sure the dataset exists or provide correct path with --dataset")
         return
 
+    # Load sample indices if provided
+    sample_indices = None
+    if args.sample_indices:
+        sample_indices_path = Path(args.sample_indices)
+        if not sample_indices_path.exists():
+            print(f"❌ Error: Sample indices file not found: {args.sample_indices}")
+            return
+
+        try:
+            with open(sample_indices_path, 'r') as f:
+                indices_data = json.load(f)
+                sample_indices = indices_data.get('sample_indices')
+                if sample_indices is None:
+                    print(f"❌ Error: No 'sample_indices' key found in {args.sample_indices}")
+                    return
+                print(f"📋 Loaded {len(sample_indices)} sample indices from {args.sample_indices}")
+        except json.JSONDecodeError as e:
+            print(f"❌ Error: Invalid JSON in sample indices file: {e}")
+            return
+        except Exception as e:
+            print(f"❌ Error: Failed to load sample indices file: {e}")
+            return
+
     # Create configuration
     config = ExperimentConfig(
         batch_size=args.batch_size,
@@ -82,7 +113,8 @@ async def main():
         random_seed=args.seed,
         max_concurrent=args.max_concurrent,
         save_individual_results=not args.no_individual,
-        save_summary=not args.no_summary
+        save_summary=not args.no_summary,
+        sample_indices=sample_indices
     )
 
     print("🔧 Experiment Configuration:")
