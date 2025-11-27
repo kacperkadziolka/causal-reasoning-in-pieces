@@ -1,5 +1,5 @@
 from pydantic_ai import Agent
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Tuple, Optional
 import asyncio
 import json
 import sys
@@ -7,6 +7,7 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent))
 from models import Plan
+from prompt_enhancer import PromptEnhancer
 
 
 class IterativePlanner:
@@ -566,7 +567,12 @@ PROMPT TEMPLATE ALIGNMENT:
 
         return plan
 
-    async def generate_two_stage_plan(self, task_description: str, algorithm_knowledge: str) -> Plan:
+    async def generate_two_stage_plan(
+        self,
+        task_description: str,
+        algorithm_knowledge: str,
+        enhance_prompts: bool = False
+    ) -> Plan:
         """
         Generate a plan using two-stage approach to reduce cognitive load.
 
@@ -720,6 +726,17 @@ Contract:
         print("🔍 DEBUG - GENERATED PLAN DATA FLOW:")
         for stage in plan.stages:
             print(f"  {stage.id}: {stage.reads} → {stage.writes}")
+
+        # Auto-correct and validate the plan
+        plan = self._validate_and_fix_plan(plan)
+
+        # Optional: Enhance prompts with best practices
+        if enhance_prompts:
+            print("\n🎨 STEP 3: Prompt Enhancement")
+            print("-" * 30)
+            enhancer = PromptEnhancer()
+            plan = await enhancer.enhance_plan(plan, algorithm_knowledge)
+            print("✅ Prompts enhanced with best practices")
 
         return plan
 
