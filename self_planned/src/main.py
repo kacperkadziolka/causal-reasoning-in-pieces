@@ -531,7 +531,7 @@ async def simple_main(sample_idx: Optional[int] = None):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run self-planned pipeline on specific dataset samples")
-    parser.add_argument("--sample-idx", type=int, default=175, help="Specific sample index to test")
+    parser.add_argument("--sample-idx", type=int, default=67, help="Specific sample index to test")
 
     args = parser.parse_args()
 

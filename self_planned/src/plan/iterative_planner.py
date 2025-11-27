@@ -560,8 +560,9 @@ PROMPT TEMPLATE ALIGNMENT:
 
         result = await simple_planner.run(task_description)
         plan = result.output
-        # Validate the generated plan (disabled as requested)
-        # self._validate_plan_templates(plan)  # Disabled to skip validation
+
+        # Auto-correct and validate the plan
+        plan = self._validate_and_fix_plan(plan)
 
         return plan
 
@@ -753,6 +754,102 @@ Contract:
                 )
 
             print(f"✅ Validation passed for stage '{stage.id}': placeholders={placeholders}, schema_keys={schema_keys}")
+
+    def _validate_and_fix_plan(self, plan: Plan) -> Plan:
+        """
+        Validate and auto-correct plan for consistency.
+
+        This method ensures:
+        1. Schema keys match writes array (auto-corrects mismatches)
+        2. All reads keys have corresponding placeholders in prompt templates
+        3. Data flow connectivity is preserved
+
+        Returns the corrected plan.
+        """
+        import re
+
+        print("\n🔍 Validating and auto-correcting plan...")
+        corrections_made = []
+
+        for stage in plan.stages:
+            # 1. Fix schema-writes mismatch (CRITICAL for preventing execution errors)
+            schema_keys = set(stage.output_schema.get('properties', {}).keys())
+            writes_keys = set(stage.writes)
+
+            if schema_keys != writes_keys:
+                print(f"⚠️  Stage '{stage.id}': Schema mismatch detected")
+                print(f"    Expected (writes): {stage.writes}")
+                print(f"    Found (schema):    {list(schema_keys)}")
+
+                # Auto-correct: align schema to match writes (writes is canonical)
+                corrected_properties = {}
+                for write_key in stage.writes:
+                    # Try to find matching schema key (fuzzy match)
+                    matching = self._find_matching_schema_key(write_key, schema_keys)
+                    if matching:
+                        # Reuse existing schema definition under correct key
+                        corrected_properties[write_key] = stage.output_schema['properties'][matching]
+                        print(f"    ✓ Mapped '{matching}' → '{write_key}'")
+                    else:
+                        # Create generic schema for missing key
+                        corrected_properties[write_key] = {"type": "object"}
+                        print(f"    ✓ Created generic schema for '{write_key}'")
+
+                stage.output_schema['properties'] = corrected_properties
+                stage.output_schema['required'] = stage.writes
+                corrections_made.append(f"Schema keys for stage '{stage.id}'")
+
+            # 2. Validate placeholder usage (WARNING only, don't auto-fix)
+            placeholders = set(re.findall(r'\{(\w+)\}', stage.prompt_template))
+            missing_placeholders = set(stage.reads) - placeholders
+            if missing_placeholders:
+                print(f"⚠️  Stage '{stage.id}': Missing placeholders for reads: {missing_placeholders}")
+                print(f"    This may cause template rendering errors!")
+                # Note: We don't auto-fix this as it requires understanding prompt structure
+
+        if corrections_made:
+            print(f"✅ Auto-corrections applied: {len(corrections_made)} issues fixed")
+            for correction in corrections_made:
+                print(f"   - {correction}")
+        else:
+            print("✅ No corrections needed - plan is consistent")
+
+        return plan
+
+    def _find_matching_schema_key(self, target_key: str, available_keys: set) -> str | None:
+        """
+        Find matching key using fuzzy matching rules.
+
+        Matching rules (in priority order):
+        1. Exact match
+        2. Pluralization differences (sepset ↔ sepsets)
+        3. Case differences (Graph ↔ graph)
+        4. Underscore/camelCase variations (sep_sets ↔ sepSets)
+        """
+        target_lower = target_key.lower()
+
+        # Rule 1: Exact match
+        if target_key in available_keys:
+            return target_key
+
+        for available_key in available_keys:
+            available_lower = available_key.lower()
+
+            # Rule 2: Case-insensitive exact match
+            if target_lower == available_lower:
+                return available_key
+
+            # Rule 3: Pluralization (add/remove 's')
+            if target_lower + 's' == available_lower or target_lower == available_lower + 's':
+                return available_key
+
+            # Rule 4: Underscore variations (simple check)
+            target_normalized = target_lower.replace('_', '')
+            available_normalized = available_lower.replace('_', '')
+            if target_normalized == available_normalized:
+                return available_key
+
+        return None
 
     def _extract_score_from_feedback(self, feedback: str) -> float:
         """Extract the overall score from feedback text"""
