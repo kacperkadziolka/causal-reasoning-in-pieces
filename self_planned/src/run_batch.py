@@ -68,6 +68,20 @@ def parse_args():
         default="indices/sample_indices_batch_exp_20251125_222142_results.json"
     )
 
+    parser.add_argument(
+        "--sequential-generation",
+        action="store_true",
+        default=False,  # Change to True to make sequential the default
+        help="Generate stage prompts sequentially instead of batch (only with --multi-agent-planner)"
+    )
+
+    parser.add_argument(
+        "--multi-agent-planner",
+        action="store_true",
+        default=False,  # Change to True to make multi-agent planner the default
+        help="Use MultiAgentPlanner instead of IterativePlanner"
+    )
+
     return parser.parse_args()
 
 
@@ -114,7 +128,9 @@ async def main():
         max_concurrent=args.max_concurrent,
         save_individual_results=not args.no_individual,
         save_summary=not args.no_summary,
-        sample_indices=sample_indices
+        sample_indices=sample_indices,
+        use_sequential_generation=args.sequential_generation,
+        use_multi_agent_planner=args.multi_agent_planner
     )
 
     print("🔧 Experiment Configuration:")
@@ -125,6 +141,8 @@ async def main():
     print(f"   Random seed: {config.random_seed}")
     print(f"   Save individual: {config.save_individual_results}")
     print(f"   Save summary: {config.save_summary}")
+    print(f"   Multi-agent planner: {config.use_multi_agent_planner}")
+    print(f"   Sequential generation: {config.use_sequential_generation}")
 
     # Run experiments
     runner = BatchExperimentRunner(config)

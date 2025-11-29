@@ -17,3 +17,6 @@ prompts
 backup.py
 
 indices
+
+.claude
+CLAUDE.md

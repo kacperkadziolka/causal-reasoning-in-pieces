@@ -1,7 +1,7 @@
 import asyncio
 import os
 import argparse
-from typing import Any, Optional, Dict
+from typing import Any, Optional, Dict, Tuple
 from dotenv import load_dotenv
 import pandas as pd
 import random
@@ -9,12 +9,109 @@ from pydantic_ai import Agent
 
 from knowledge.extractor import EnhancedKnowledgeExtractor
 from plan.iterative_planner import IterativePlanner
+from plan.multi_agent_planner import MultiAgentPlanner
 from execute.executor import run_plan
 
 load_dotenv()
 
 # Configurable debug logging
 DEBUG_LOGGING = True
+
+
+def extract_boolean_from_result(
+    final_result: Any,
+    final_key: str,
+    stage_id: str = "final_stage"
+) -> Tuple[bool, Optional[str]]:
+    """
+    Extract boolean from various formats with algorithm-agnostic heuristics.
+
+    Handles:
+    - Simple booleans: True/False
+    - Strings: "true"/"false", "1"/"0", "yes"/"no"
+    - Integers: 1/0
+    - Nested objects: {"verified": bool}, {"holds": bool}
+    - Arrays: [bool]
+
+    Returns:
+        (extracted_boolean, warning_message)
+        warning_message is None for clean extractions
+
+    Raises:
+        ValueError: If boolean cannot be extracted
+    """
+    warning = None
+
+    # Case 1: Already boolean (expected after primary fix)
+    if isinstance(final_result, bool):
+        return final_result, None
+
+    # Case 2: String
+    if isinstance(final_result, str):
+        lower = final_result.lower().strip()
+        if lower in ['true', '1', 'yes']:
+            return True, None
+        elif lower in ['false', '0', 'no']:
+            return False, None
+        raise ValueError(f"Cannot extract boolean from string '{final_result}'")
+
+    # Case 3: Integer
+    if isinstance(final_result, int):
+        if final_result in [0, 1]:
+            return bool(final_result), None
+        raise ValueError(f"Cannot extract boolean from int {final_result}. Expected 0 or 1")
+
+    # Case 4: Nested object (SHOULD NOT HAPPEN after primary fix)
+    if isinstance(final_result, dict):
+        warning = (
+            f"⚠️  WARNING: Final stage '{stage_id}' returned nested object. "
+            f"Attempting intelligent extraction..."
+        )
+
+        # Strategy 1: Common boolean field names (algorithm-agnostic)
+        candidates = [
+            'verified', 'holds', 'decision', 'result', 'answer',
+            'is_true', 'value', 'valid', 'correct', 'output'
+        ]
+
+        for field in candidates:
+            if field in final_result and isinstance(final_result[field], bool):
+                return final_result[field], warning
+
+        # Strategy 2: Find ANY boolean field (truly algorithm-agnostic)
+        for key, value in final_result.items():
+            if isinstance(value, bool):
+                warning += f"\n⚠️  Using first boolean field: '{key}' = {value}"
+                return value, warning
+
+        # Strategy 3: Nested search
+        for key, value in final_result.items():
+            if isinstance(value, dict):
+                try:
+                    nested_bool, _ = extract_boolean_from_result(value, key, f"{stage_id}.{key}")
+                    warning += f"\n⚠️  Using nested boolean from '{key}'"
+                    return nested_bool, warning
+                except ValueError:
+                    continue
+
+        raise ValueError(
+            f"Cannot extract boolean from object: {final_result}. "
+            f"No boolean fields found."
+        )
+
+    # Case 5: Array
+    if isinstance(final_result, list):
+        if len(final_result) == 1:
+            return extract_boolean_from_result(final_result[0], final_key, stage_id)
+        raise ValueError(f"Cannot extract boolean from array: {final_result}")
+
+    # Case 6: None
+    if final_result is None:
+        raise ValueError("Cannot extract boolean from None")
+
+    # Fallback
+    warning = f"⚠️  CRITICAL: Using Python truthiness. Unreliable!"
+    return bool(final_result), warning
 
 
 def fetch_sample(csv_path: str, sample_idx: Optional[int] = None) -> pd.Series:
@@ -279,13 +376,21 @@ CRITICAL OUTPUT FORMAT: The final stage must output ONLY a boolean value (true o
         print("-" * 30)
         expected = bool(sample['label'])
 
-        # Convert final_result to boolean
-        if isinstance(final_result, str):
-            actual = final_result.lower() in ['true', '1', 'yes']
-        elif isinstance(final_result, int):
-            actual = bool(final_result)
-        else:
-            actual = bool(final_result)
+        # Convert final_result to boolean using intelligent extraction
+        try:
+            actual, extraction_warning = extract_boolean_from_result(
+                final_result,
+                final_key,
+                stage_id=plan.stages[-1].id if plan.stages else "unknown"
+            )
+
+            if extraction_warning:
+                print(extraction_warning)
+
+        except ValueError as e:
+            print(f"❌ Boolean extraction failed: {e}")
+            print(f"🔍 Final result: {final_result}")
+            raise
 
         is_correct = actual == expected
 
@@ -322,7 +427,11 @@ CRITICAL OUTPUT FORMAT: The final stage must output ONLY a boolean value (true o
         return None
 
 
-async def run_simple_workflow(sample: pd.Series) -> Optional[Dict[str, Any]]:
+async def run_simple_workflow(
+    sample: pd.Series,
+    use_sequential_generation: bool = False,
+    use_multi_agent_planner: bool = False
+) -> Optional[Dict[str, Any]]:
     """
     Run a simple workflow using backup functions for performance comparison.
 
@@ -331,6 +440,9 @@ async def run_simple_workflow(sample: pd.Series) -> Optional[Dict[str, Any]]:
 
     Args:
         sample: A pandas Series containing the test sample data
+        use_sequential_generation: If True, generate stage prompts sequentially
+                                   (only used with multi-agent planner)
+        use_multi_agent_planner: If True, use MultiAgentPlanner instead of IterativePlanner
 
     Returns:
         Dictionary with execution results or None if failed
@@ -384,7 +496,11 @@ ALGORITHM REQUIREMENT:
 Input available in context: "input" (contains premise with variables, correlations, conditional independencies, and hypothesis).
 
 CRITICAL OUTPUT FORMAT:
-- The final stage must output ONLY a boolean value (true or false) as a single context key (e.g., "decision").
+- The final stage MUST output a SIMPLE BOOLEAN VALUE (true or false), NOT a nested object.
+- The output should be a single key with a boolean value, for example: {"decision": true} or {"result": false}
+- DO NOT output nested objects like {"decision": {"holds": true, "explanation": "..."}}
+- DO NOT include explanation fields - just the boolean decision.
+- The schema for the final stage MUST specify a simple boolean type, not an object type.
 """
 
     print("\n📚 STEP 1: Knowledge Extraction")
@@ -395,14 +511,28 @@ CRITICAL OUTPUT FORMAT:
 
     print("\n🔄 STEP 2: Planning")
     print("-" * 30)
-    planner = IterativePlanner()
-    # Set enhance_prompts=True to enable prompt quality improvements
-    plan = await planner.generate_two_stage_plan(
-        task_description=task_description,
-        algorithm_knowledge=knowledge,
-        enhance_prompts=True  # Enable prompt enhancement
-    )
-    print(f"✅ Planning successful: {len(plan.stages)} stages")
+
+    if use_multi_agent_planner:
+        print("Using MultiAgentPlanner" + (" (SEQUENTIAL mode)" if use_sequential_generation else " (BATCH mode)"))
+        planner = MultiAgentPlanner()
+        plan, metadata = await planner.generate_plan(
+            task_description=task_description,
+            algorithm_knowledge=knowledge,
+            use_sequential=use_sequential_generation
+        )
+        print(f"✅ Planning successful: {len(plan.stages)} stages")
+        print(f"   Generation mode: {metadata.get('generation_mode', 'unknown')}")
+    else:
+        print("Using IterativePlanner (two-stage planning)")
+        planner = IterativePlanner()
+        # Set enhance_prompts=True to enable prompt quality improvements
+        plan = await planner.generate_two_stage_plan(
+            task_description=task_description,
+            algorithm_knowledge=knowledge,
+            enhance_prompts=True  # Enable prompt enhancement
+        )
+        print(f"✅ Planning successful: {len(plan.stages)} stages")
+
     print("📋 Plan structure:")
     print(plan.model_dump_json(indent=2))
 
@@ -422,13 +552,21 @@ CRITICAL OUTPUT FORMAT:
     print("-" * 30)
     expected = bool(sample['label'])
 
-    # Convert final_result to boolean
-    if isinstance(final_result, str):
-        actual = final_result.lower() in ['true', '1', 'yes']
-    elif isinstance(final_result, int):
-        actual = bool(final_result)
-    else:
-        actual = bool(final_result)
+    # Convert final_result to boolean using intelligent extraction
+    try:
+        actual, extraction_warning = extract_boolean_from_result(
+            final_result,
+            final_key,
+            stage_id=plan.stages[-1].id if plan.stages else "unknown"
+        )
+
+        if extraction_warning:
+            print(extraction_warning)
+
+    except ValueError as e:
+        print(f"❌ Boolean extraction failed: {e}")
+        print(f"🔍 Final result: {final_result}")
+        raise
 
     is_correct = actual == expected
 
@@ -499,15 +637,30 @@ async def main(sample_idx: Optional[int] = None):
     print("=" * 60)
 
 
-async def simple_main(sample_idx: Optional[int] = None):
+async def simple_main(
+    sample_idx: Optional[int] = None,
+    use_sequential_generation: bool = False,
+    use_multi_agent_planner: bool = False
+):
     """
     Simple main function using lightweight workflow for performance testing.
 
     This function runs the simple workflow to compare performance and output
     quality against the enhanced version. Useful for debugging performance
     bottlenecks and testing the baseline approach.
+
+    Args:
+        sample_idx: Specific sample index or None for random
+        use_sequential_generation: Enable sequential stage generation
+        use_multi_agent_planner: Use MultiAgentPlanner instead of IterativePlanner
     """
     print("🔬 SIMPLE SELF-PLANNED PIPELINE")
+    print("=" * 60)
+
+    if use_multi_agent_planner:
+        print(f"🧠 Planner: MultiAgentPlanner ({'SEQUENTIAL' if use_sequential_generation else 'BATCH'} mode)")
+    else:
+        print("🧠 Planner: IterativePlanner (two-stage)")
     print("=" * 60)
 
     # Load sample
@@ -515,7 +668,11 @@ async def simple_main(sample_idx: Optional[int] = None):
     sample = fetch_sample(csv_path, sample_idx)
 
     # Run simple workflow
-    result = await run_simple_workflow(sample)
+    result = await run_simple_workflow(
+        sample,
+        use_sequential_generation=use_sequential_generation,
+        use_multi_agent_planner=use_multi_agent_planner
+    )
 
     # Final summary
     print("\n" + "=" * 60)
@@ -536,7 +693,19 @@ async def simple_main(sample_idx: Optional[int] = None):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run self-planned pipeline on specific dataset samples")
-    parser.add_argument("--sample-idx", type=int, default=175, help="Specific sample index to test")
+    parser.add_argument("--sample-idx", type=int, default=264, help="Specific sample index to test")
+    parser.add_argument(
+        "--sequential-generation",
+        action="store_true",
+        default=True,  # Change to True to make sequential the default
+        help="Generate stage prompts sequentially (only with --multi-agent-planner)"
+    )
+    parser.add_argument(
+        "--multi-agent-planner",
+        action="store_true",
+        default=True,  # Change to True to make multi-agent planner the default
+        help="Use MultiAgentPlanner instead of IterativePlanner"
+    )
 
     args = parser.parse_args()
 
@@ -545,4 +714,8 @@ if __name__ == "__main__":
     else:
         print("🎯 Using random sample")
 
-    asyncio.run(simple_main(args.sample_idx))
+    asyncio.run(simple_main(
+        args.sample_idx,
+        use_sequential_generation=args.sequential_generation,
+        use_multi_agent_planner=args.multi_agent_planner
+    ))

@@ -27,6 +27,8 @@ class ExperimentConfig:
     random_seed: Optional[int] = None
     max_concurrent: int = 10  # Maximum concurrent experiments
     sample_indices: Optional[List[int]] = None  # Specific sample indices to run
+    use_sequential_generation: bool = False  # Sequential stage generation mode
+    use_multi_agent_planner: bool = False  # Use MultiAgentPlanner instead of IterativePlanner
 
 
 @dataclass
@@ -129,7 +131,11 @@ class BatchExperimentRunner:
             sample = self.dataset.iloc[sample_idx]
 
             # Run the simple workflow
-            result = await run_simple_workflow(sample)
+            result = await run_simple_workflow(
+                sample,
+                use_sequential_generation=self.config.use_sequential_generation,
+                use_multi_agent_planner=self.config.use_multi_agent_planner
+            )
             execution_time = time.time() - start_time
 
             if result is None:
