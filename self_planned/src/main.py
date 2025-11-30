@@ -1,5 +1,4 @@
 import asyncio
-import os
 import argparse
 from typing import Any, Optional, Dict, Tuple
 from dotenv import load_dotenv
@@ -11,11 +10,9 @@ from knowledge.extractor import EnhancedKnowledgeExtractor
 from plan.iterative_planner import IterativePlanner
 from plan.multi_agent_planner import MultiAgentPlanner
 from execute.executor import run_plan
+from utils.logging_config import init_logger, get_logger
 
 load_dotenv()
-
-# Configurable debug logging
-DEBUG_LOGGING = True
 
 
 def extract_boolean_from_result(
@@ -110,7 +107,7 @@ def extract_boolean_from_result(
         raise ValueError("Cannot extract boolean from None")
 
     # Fallback
-    warning = f"⚠️  CRITICAL: Using Python truthiness. Unreliable!"
+    warning = "⚠️  CRITICAL: Using Python truthiness. Unreliable!"
     return bool(final_result), warning
 
 
@@ -533,8 +530,8 @@ CRITICAL OUTPUT FORMAT:
         )
         print(f"✅ Planning successful: {len(plan.stages)} stages")
 
-    print("📋 Plan structure:")
-    print(plan.model_dump_json(indent=2))
+    # logger = get_logger()
+    # logger.plan_structure(plan.model_dump_json(indent=2))
 
     print("\n⚡ STEP 3: Execution")
     print("-" * 30)
@@ -544,7 +541,7 @@ CRITICAL OUTPUT FORMAT:
     final_result = final_context.get(final_key)
 
     print("✅ Execution completed")
-    print(f"Final context: {final_context}")
+    # print(f"Final context: {final_context}")
     print(f"🎯 Final result key: '{final_key}'")
     print(f"📊 Final result: {final_result}")
 
@@ -706,13 +703,25 @@ if __name__ == "__main__":
         default=True,  # Change to True to make multi-agent planner the default
         help="Use MultiAgentPlanner instead of IterativePlanner"
     )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        default=True,
+        help="Enable debug mode with verbose logging"
+    )
 
     args = parser.parse_args()
+
+    # Initialize logger with debug setting
+    init_logger(debug=args.debug)
 
     if args.sample_idx is not None:
         print(f"🎯 Testing sample index: {args.sample_idx}")
     else:
         print("🎯 Using random sample")
+
+    if args.debug:
+        print("🐛 Debug mode enabled - showing verbose logs")
 
     asyncio.run(simple_main(
         args.sample_idx,

@@ -24,6 +24,7 @@ import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).parent))
 from models import Plan, Stage
+from utils.logging_config import get_logger
 
 
 # Intermediate data models for the pipeline
@@ -355,8 +356,14 @@ Return the validated, aligned, complete Plan.
         )
 
         # Agent 5: Sequential Stage Detail Generator (for sequential mode)
+        # Define output model for structured response
+        class StageDetails(BaseModel):
+            prompt_template: str
+            output_schema: Dict[str, Any]
+
         self.sequential_stage_agent = Agent(
             "openai:o3-mini",
+            output_type=StageDetails,
             system_prompt="""
 # ROLE
 You are an expert at creating detailed, executable stage specifications.
@@ -372,13 +379,9 @@ Generate a DETAILED prompt template and JSON schema for ONE specific stage in an
 - Position in the pipeline (stage N of M)
 
 # OUTPUT REQUIREMENTS
-You must return a JSON object with exactly two fields:
-```json
-{
-  "prompt_template": "<detailed prompt with placeholders>",
-  "output_schema": {"type": "object", ...}
-}
-```
+Return a StageDetails object with:
+- prompt_template: detailed prompt with placeholders
+- output_schema: JSON schema object
 
 # PROMPT TEMPLATE STRUCTURE
 Your prompt_template MUST follow this exact format:
@@ -482,22 +485,23 @@ Generate the most detailed, robust prompt and schema possible for this ONE stage
         Returns:
             (plan, metadata) where metadata contains intermediate results for debugging
         """
-        print("\n🎯 MULTI-AGENT PLANNING PIPELINE")
-        print("=" * 60)
+        logger = get_logger()
+
+        logger.section("🎯 MULTI-AGENT PLANNING PIPELINE")
 
         metadata = {}
 
         # Step 1: Generate Stage Sequence
-        print("\n📋 STEP 1: Generating Stage Sequence...")
+        logger.subsection("📋 STEP 1: Generating Stage Sequence...")
         sequence = await self._generate_sequence(task_description, algorithm_knowledge)
         metadata["sequence"] = sequence.model_dump()
-        print(f"✅ Generated {len(sequence.stages)} stages")
+        logger.success(f"Generated {len(sequence.stages)} stages")
         for stage in sequence.stages:
-            print(f"   - {stage['id']}: {stage['reads']} → {stage['writes']}")
+            logger.planning_progress(f"   - {stage['id']}: {stage['reads']} → {stage['writes']}", show_always=True)
 
         # Step 2 & 3: Generate Prompts and Schemas
         if use_sequential:
-            print("\n✍️  STEP 2 & 3: Designing Prompts & Schemas SEQUENTIALLY (one stage at a time)...")
+            logger.subsection("✍️  STEP 2 & 3: Designing Prompts & Schemas SEQUENTIALLY (one stage at a time)...")
             prompt_library, schema_library = await self._generate_prompts_and_schemas_sequential(
                 stage_sequence=sequence.stages,
                 algorithm_knowledge=algorithm_knowledge
@@ -508,21 +512,21 @@ Generate the most detailed, robust prompt and schema possible for this ONE stage
             metadata["prompts"] = prompts.model_dump()
             metadata["schemas"] = schemas.model_dump()
             metadata["generation_mode"] = "sequential"
-            print(f"✅ Generated {len(prompts.prompts)} detailed prompt templates (sequential mode)")
+            logger.success(f"Generated {len(prompts.prompts)} detailed prompt templates (sequential mode)")
         else:
-            print("\n✍️  STEP 2: Designing Prompt Templates (BATCH mode)...")
+            logger.subsection("✍️  STEP 2: Designing Prompt Templates (BATCH mode)...")
             prompts = await self._generate_prompts(sequence, algorithm_knowledge)
             metadata["prompts"] = prompts.model_dump()
-            print(f"✅ Generated {len(prompts.prompts)} prompt templates")
+            logger.success(f"Generated {len(prompts.prompts)} prompt templates")
 
-            print("\n📐 STEP 3: Designing Output Schemas (BATCH mode)...")
+            logger.subsection("📐 STEP 3: Designing Output Schemas (BATCH mode)...")
             schemas = await self._generate_schemas(sequence, algorithm_knowledge)
             metadata["schemas"] = schemas.model_dump()
             metadata["generation_mode"] = "batch"
-            print(f"✅ Generated {len(schemas.schemas)} schemas")
+            logger.success(f"Generated {len(schemas.schemas)} schemas")
 
         # Step 4: Validate & Align
-        print("\n🔍 STEP 4: Validating & Aligning Plan...")
+        logger.subsection("🔍 STEP 4: Validating & Aligning Plan...")
 
         # Determine final key (last stage's first write, or explicit from task)
         final_key = self._determine_final_key(sequence, task_description)
@@ -531,11 +535,10 @@ Generate the most detailed, robust prompt and schema possible for this ONE stage
             sequence, prompts, schemas, final_key, max_retries
         )
         metadata["final_key"] = final_key
-        print(f"✅ Plan validated and aligned")
-        print(f"   Final output key: '{final_key}'")
+        logger.success("Plan validated and aligned")
+        logger.info(f"   Final output key: '{final_key}'")
 
-        print("\n✅ MULTI-AGENT PLANNING COMPLETE")
-        print("=" * 60)
+        logger.section("✅ MULTI-AGENT PLANNING COMPLETE")
 
         return plan, metadata
 
@@ -638,18 +641,20 @@ Return a complete, validated Plan.
             validation_errors = self._validate_plan_structure(plan)
 
             if not validation_errors:
-                print(f"✅ Validation passed on attempt {attempt + 1}")
+                logger = get_logger()
+                logger.success(f"Validation passed on attempt {attempt + 1}")
                 return plan
 
-            print(f"⚠️  Validation issues found on attempt {attempt + 1}:")
+            logger = get_logger()
+            logger.warning(f"Validation issues found on attempt {attempt + 1}:")
             for error in validation_errors:
-                print(f"   - {error}")
+                logger.info(f"   - {error}")
 
             if attempt < max_retries - 1:
-                print(f"🔄 Retrying validation...")
+                logger.info("🔄 Retrying validation...")
                 # Could add error feedback to next validation attempt
             else:
-                print(f"⚠️  Max retries reached, returning plan with warnings")
+                logger.warning("Max retries reached, returning plan with warnings")
                 return plan
 
         return plan
@@ -775,19 +780,18 @@ Generate a prompt template that explicitly builds on previous stages and a schem
 
         try:
             result = await self.sequential_stage_agent.run(user_message)
-            # Parse the JSON response from the LLM
-            response_text = result.output if hasattr(result, 'output') else str(result)
-            response_data = json.loads(response_text)
+            # Extract from structured output (Pydantic model)
+            stage_details = result.output
             return {
-                "prompt_template": response_data["prompt_template"],
-                "output_schema": response_data["output_schema"]
+                "prompt_template": stage_details.prompt_template,
+                "output_schema": stage_details.output_schema
             }
-        except json.JSONDecodeError as e:
-            print(f"❌ Failed to parse JSON response for {stage_spec['id']}: {e}")
-            print(f"Response: {response_text[:500]}...")
-            raise
         except Exception as e:
-            print(f"❌ Sequential stage generation failed for {stage_spec['id']}: {e}")
+            logger = get_logger()
+            logger.error(f"Sequential stage generation failed for {stage_spec['id']}: {e}")
+            if logger.debug:
+                import traceback
+                traceback.print_exc()
             raise
 
     async def _generate_prompts_and_schemas_sequential(
@@ -807,11 +811,13 @@ Generate a prompt template that explicitly builds on previous stages and a schem
 
         total_stages = len(stage_sequence)
 
+        logger = get_logger()
+
         for idx, stage_spec in enumerate(stage_sequence):
             stage_id = stage_spec['id']
             position = f"stage {idx + 1} of {total_stages}"
 
-            print(f"   Generating details for {stage_id} ({position})...")
+            logger.planning_progress(f"   Generating details for {stage_id} ({position})...", show_always=True)
 
             # Generate prompt + schema with context of all previous stages
             details = await self._generate_stage_details_sequential(
@@ -835,7 +841,7 @@ Generate a prompt template that explicitly builds on previous stages and a schem
                 "output_schema": details["output_schema"]
             })
 
-            print(f"   ✓ Generated {stage_id}: prompt={len(details['prompt_template'])} chars")
+            logger.planning_progress(f"   ✓ Generated {stage_id}: prompt={len(details['prompt_template'])} chars", show_always=True)
 
         return prompt_library, schema_library
 

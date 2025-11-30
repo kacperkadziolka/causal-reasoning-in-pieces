@@ -3,6 +3,7 @@ import json
 from typing import Dict, Any
 from pydantic_ai import Agent
 from plan.models import Stage, Plan
+from utils.logging_config import get_logger
 
 
 def create_executor() -> Agent[None, str]:
@@ -147,20 +148,20 @@ def preprocess_template(template: str, read_data: Dict[str, Any]) -> str:
     return template
 
 
-async def run_stage(stage: Stage, context: Dict[str, Any], debug_logging: bool = False) -> Dict[str, Any]:
+async def run_stage(stage: Stage, context: Dict[str, Any]) -> Dict[str, Any]:
     import time
 
+    logger = get_logger()
     executor = create_executor()
 
     # Get the data this stage needs to read
     read_data = {key: context.get(key) for key in stage.reads}
 
-    print(f"\n🔄 {stage.id}: {stage.reads} → {stage.writes}", end=" ")
+    logger.stage_header(stage.id, stage.reads, stage.writes)
 
-    if debug_logging:
-        print(f"\n🔍 DEBUG - Stage {stage.id}:")
-        print(f"     📥 Input data: {read_data}")
-        print(f"     📋 Stage prompt template: {stage.prompt_template[:200]}...")
+    # logger.debug_print(f"\n🔍 DEBUG - Stage {stage.id}:")
+    # logger.debug_print(f"     📥 Input data: {read_data}")
+    # logger.debug_print(f"     📋 Stage prompt template: {stage.prompt_template[:200]}...")
 
     start_time = time.time()
 
@@ -225,66 +226,52 @@ async def run_stage(stage: Stage, context: Dict[str, Any], debug_logging: bool =
     # Add schema information to guide the output
     prompt_with_schema = f"{rendered_prompt}\n\nOutput JSON Schema:\n{json.dumps(stage.output_schema, indent=2)}"
 
-    if debug_logging:
-        print(f"     📝 Rendered prompt (first 500 chars): {prompt_with_schema[:500]}...")
-        if len(prompt_with_schema) > 500:
-            print(f"     📝 Rendered prompt (last 200 chars): ...{prompt_with_schema[-200:]}")
+    # logger.debug_print(f"     📝 Rendered prompt (first 500 chars): {prompt_with_schema[:500]}...")
+    # if len(prompt_with_schema) > 500:
+    #     logger.debug_print(f"     📝 Rendered prompt (last 200 chars): ...{prompt_with_schema[-200:]}")
 
-    # Log RAW INPUT
-    print(f"\n{'='*80}")
-    print(f"🤖 MODEL CALL - Stage: {stage.id}")
-    print(f"{'='*80}")
-    print(f"📥 RAW INPUT:")
-    print(f"{'-'*40}")
-    print(prompt_with_schema)
-    print(f"{'-'*40}")
+    # Log RAW INPUT (only in debug mode)
+    logger.model_call_separator(stage.id)
+    logger.raw_input(prompt_with_schema)
 
     # Execute the stage
     result = await executor.run(prompt_with_schema)
     json_output = result.output
 
-    # Log RAW OUTPUT
-    print(f"📤 RAW OUTPUT:")
-    print(f"{'-'*40}")
-    print(json_output)
-    print(f"{'-'*40}")
-    print(f"{'='*80}")
-
-    if debug_logging:
-        print(f"     🤖 Raw LLM response: {json_output}")
+    # Log RAW OUTPUT (only in debug mode)
+    logger.raw_output(json_output)
 
     # Parse the JSON response
     try:
         stage_output = json.loads(json_output)
-        print("✅", end="")
-        if debug_logging:
-            print(f"\n     ✅ JSON parsing successful")
+        # if not logger.debug:
+        #     print("✅", end="")
+        # logger.debug_print("✅")
+        # logger.debug_print(f"     ✅ JSON parsing successful")
     except json.JSONDecodeError:
         try:
             stage_output = ast.literal_eval(json_output)
-            print("✅", end="")
-            if debug_logging:
-                print(f"\n     ✅ Fallback parsing successful")
+            if not logger.debug:
+                print("✅", end="")
+            logger.debug_print("✅")
+            logger.debug_print(f"     ✅ Fallback parsing successful")
         except (ValueError, SyntaxError) as e:
             print("❌")
-            if debug_logging:
-                print(f"\n     ❌ JSON/dict parsing failed: {e}")
+            logger.debug_print(f"     ❌ JSON/dict parsing failed: {e}")
             raise ValueError(f"Stage '{stage.id}' returned invalid JSON/dict: {e}")
 
     # Validate that all required keys are present
     missing_keys = [key for key in stage.writes if key not in stage_output]
     if missing_keys:
         print(f"❌ Missing: {missing_keys}")
-        if debug_logging:
-            print(f"     ❌ DEBUG - Missing keys: {missing_keys}")
-            print(f"     ❌ DEBUG - Expected keys: {stage.writes}")
-            print(f"     ❌ DEBUG - Actual keys: {list(stage_output.keys())}")
+        logger.debug_print(f"     ❌ DEBUG - Missing keys: {missing_keys}")
+        logger.debug_print(f"     ❌ DEBUG - Expected keys: {stage.writes}")
+        logger.debug_print(f"     ❌ DEBUG - Actual keys: {list(stage_output.keys())}")
         raise ValueError(
             f"Stage '{stage.id}' did not produce required output keys: {missing_keys}"
         )
 
-    if debug_logging:
-        print(f"     ✅ All required output keys present: {stage.writes}")
+    # logger.debug_print(f"     ✅ All required output keys present: {stage.writes}")
 
     # Calculate execution time and output metrics
     execution_time = time.time() - start_time
@@ -326,45 +313,63 @@ async def run_stage(stage: Stage, context: Dict[str, Any], debug_logging: bool =
             output_info.append(f"{key}={type(value).__name__}")
             output_preview.append(f"{key}:{str(value)[:20]}")
 
-    print(f" ({execution_time:.1f}s, {', '.join(output_info)})")
+    # In normal mode: show concise completion info
+    if not logger.debug:
+        logger.stage_complete(execution_time, ', '.join(output_info))
 
-    # Show output preview on next line with indentation
-    if output_preview:
-        print(f"     → {', '.join(output_preview)}")
+        # Show output preview on next line with indentation
+        if output_preview:
+            logger.stage_output_preview(', '.join(output_preview))
 
-    # Show full content of outputs
-    print(f"     📄 Full Output:")
-    for key in stage.writes:
-        value = stage_output[key]
-        print(f"       {key}: {value}")
+        # Show compact summary (prompt + input + output)
+        # Extract first line of prompt as preview
+        prompt_lines = stage.prompt_template.split('\n')
+        # Find the TASK section
+        task_line = None
+        for i, line in enumerate(prompt_lines):
+            if line.strip().startswith('# TASK'):
+                if i + 1 < len(prompt_lines):
+                    task_line = prompt_lines[i + 1].strip()
+                    break
+        prompt_preview = task_line if task_line else prompt_lines[0][:100]
+
+        logger.stage_summary(prompt_preview, read_data, stage_output)
+
+    # In debug mode: show full output details
+    else:
+        # logger.stage_complete(execution_time, ', '.join(output_info))
+        # if output_preview:
+        #     logger.stage_output_preview(', '.join(output_preview))
+        # logger.full_output(stage_output)
+        test = 2
 
     return stage_output
 
 
-async def run_plan(plan: Plan, initial_context: Dict[str, Any], debug_logging: bool = False) -> Dict[str, Any]:
+async def run_plan(plan: Plan, initial_context: Dict[str, Any]) -> Dict[str, Any]:
     """Execute a complete plan by running all stages sequentially."""
     import time
 
+    logger = get_logger()
     plan_start_time = time.time()
+
     print(f"\n🎯 Executing {len(plan.stages)} stages:")
     context = dict(initial_context)
 
-    if debug_logging:
-        print(f"🔍 DEBUG - Initial context: {initial_context}")
-        print(f"🔍 DEBUG - Plan stages: {[stage.id for stage in plan.stages]}")
+    # logger.debug_print(f"🔍 DEBUG - Initial context: {initial_context}")
+    # logger.debug_print(f"🔍 DEBUG - Plan stages: {[stage.id for stage in plan.stages]}")
 
     # Run each stage sequentially
     for i, stage in enumerate(plan.stages, 1):
         try:
             # Execute the stage
-            stage_output = await run_stage(stage, context, debug_logging=debug_logging)
+            stage_output = await run_stage(stage, context)
 
             # Update context with stage outputs
             for key in stage.writes:
                 context[key] = stage_output[key]
 
-            if debug_logging:
-                print(f"🔍 DEBUG - Context after {stage.id}: {list(context.keys())}")
+            # logger.debug_print(f"🔍 DEBUG - Context after {stage.id}: {list(context.keys())}")
 
         except Exception as e:
             print(f"❌ ERROR in {stage.id}: {e}")
