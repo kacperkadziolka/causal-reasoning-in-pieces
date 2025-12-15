@@ -3,13 +3,14 @@ import json
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Dict
 from dataclasses import dataclass, asdict
 import pandas as pd
 import numpy as np
 from dotenv import load_dotenv
 
 from main import run_simple_workflow
+from plan.models import Plan
 
 load_dotenv()
 
@@ -29,6 +30,8 @@ class ExperimentConfig:
     sample_indices: Optional[List[int]] = None  # Specific sample indices to run
     use_sequential_generation: bool = False  # Sequential stage generation mode
     use_multi_agent_planner: bool = False  # Use MultiAgentPlanner instead of IterativePlanner
+    use_plan_caching: bool = True  # Enable batched plan caching
+    plan_cache_size: Optional[int] = None  # How many samples share a plan (default: max_concurrent)
 
 
 @dataclass
@@ -108,10 +111,12 @@ class BatchExperimentRunner:
         if self.dataset is None:
             raise ValueError("Dataset not loaded. Call load_dataset() first.")
 
-        # If specific sample indices are provided, use them
+        # If specific sample indices are provided, use them (up to batch_size)
         if self.config.sample_indices is not None:
-            print(f"📋 Using provided sample indices ({len(self.config.sample_indices)} samples)")
-            return sorted(self.config.sample_indices)
+            available_indices = sorted(self.config.sample_indices)
+            selected_indices = available_indices[:batch_size]  # Take only first batch_size indices
+            print(f"📋 Using provided sample indices ({len(selected_indices)} samples from {len(available_indices)} available)")
+            return selected_indices
 
         # Otherwise, sample randomly as before
         if self.config.random_seed is not None:
@@ -121,8 +126,22 @@ class BatchExperimentRunner:
         indices = np.random.choice(total_samples, size=batch_size, replace=False)
         return sorted(indices.tolist())
 
-    async def run_single_experiment(self, sample_idx: int) -> ExperimentResult:
-        """Run a single experiment and return structured result."""
+    async def run_single_experiment(
+        self,
+        sample_idx: int,
+        cached_plan: Optional[Plan] = None,
+        cached_knowledge: Optional[str] = None
+    ) -> ExperimentResult:
+        """Run a single experiment and return structured result.
+
+        Args:
+            sample_idx: Index of the sample in the dataset
+            cached_plan: Optional pre-generated plan to skip planning phase
+            cached_knowledge: Optional pre-extracted knowledge to skip extraction phase
+
+        Returns:
+            ExperimentResult with execution outcome and metrics
+        """
         start_time = time.time()
 
         try:
@@ -130,11 +149,14 @@ class BatchExperimentRunner:
                 raise ValueError("Dataset not loaded")
             sample = self.dataset.iloc[sample_idx]
 
-            # Run the simple workflow
+            # Run the simple workflow with optional cached plan (verbose=False for batch mode)
             result = await run_simple_workflow(
                 sample,
                 use_sequential_generation=self.config.use_sequential_generation,
-                use_multi_agent_planner=self.config.use_multi_agent_planner
+                use_multi_agent_planner=self.config.use_multi_agent_planner,
+                cached_plan=cached_plan,
+                cached_knowledge=cached_knowledge,
+                verbose=False  # Suppress detailed logs in batch mode
             )
             execution_time = time.time() - start_time
 
@@ -175,16 +197,21 @@ class BatchExperimentRunner:
             )
 
     def print_progress(self, current: int, total: int, result: ExperimentResult) -> None:
-        """Print progress information."""
+        """Print progress information in condensed format."""
         progress_pct = (current / total) * 100
         status = "✅" if result.error is None else "❌"
-        correct = "✓" if result.is_correct else "✗"
+        correct_symbol = "✓" if result.is_correct else "✗"
 
-        print(f"[{current:3d}/{total}] {progress_pct:5.1f}% {status} Sample {result.sample_idx:3d} "
-              f"| {result.execution_time:5.1f}s | {correct} | {result.error or 'Success'}")
+        # Format: [1/10] sample_idx | predicted=X expected=Y | ✓/✗ | 25.3s
+        predicted_str = "T" if result.predicted else "F"
+        expected_str = "T" if result.expected else "F"
+
+        print(f"[{current:2d}/{total}] Sample {result.sample_idx:4d} | "
+              f"pred={predicted_str} exp={expected_str} | {correct_symbol} | "
+              f"{result.execution_time:5.1f}s {status}", flush=True)
 
     async def run_batch(self) -> BatchResults:
-        """Run the complete batch experiment."""
+        """Run the complete batch experiment with plan caching."""
         print("🚀 Starting batch experiments...")
 
         # Load and validate dataset
@@ -195,28 +222,139 @@ class BatchExperimentRunner:
         sample_indices = self.sample_indices(batch_size)
         print(f"📋 Selected {len(sample_indices)} samples: {sample_indices[:10]}{'...' if len(sample_indices) > 10 else ''}")
 
+        # Determine cache size (samples per plan)
+        cache_size = self.config.plan_cache_size or self.config.max_concurrent
+        if not self.config.use_plan_caching:
+            cache_size = 1  # Disable caching (one plan per sample)
+
+        print(f"📦 Plan caching: {'ENABLED' if self.config.use_plan_caching else 'DISABLED'}")
+        if self.config.use_plan_caching:
+            num_groups = (len(sample_indices) + cache_size - 1) // cache_size
+            print(f"   Cache size: {cache_size} samples per plan")
+            print(f"   Batch groups: {num_groups}")
+
+        # Plan cache - maps batch_group_id → (plan, knowledge)
+        plan_cache: Dict[int, Tuple[Plan, str]] = {}
+        plan_locks: Dict[int, asyncio.Lock] = {}
+
+        async def generate_plan_for_group(batch_group_id: int) -> Tuple[Plan, str]:
+            """Generate plan using first sample of the batch group."""
+            import sys
+            import io
+            import time as time_module
+
+            # Get first sample index in this group
+            group_start_idx = batch_group_id * cache_size
+            if group_start_idx >= len(sample_indices):
+                raise ValueError(f"Invalid batch group {batch_group_id}")
+
+            first_sample_idx = sample_indices[group_start_idx]
+            first_sample = self.dataset.iloc[first_sample_idx]
+
+            print(f"\n🔧 Plan {batch_group_id + 1}/{num_groups}: Generating for sample {first_sample_idx}...")
+
+            plan_start = time_module.time()
+
+            # Extract knowledge (current approach - uses sample)
+            from knowledge.extractor import EnhancedKnowledgeExtractor
+            extractor = EnhancedKnowledgeExtractor()
+            knowledge = await extractor.extract_simple_knowledge(
+                "Peter-Clark (PC) Algorithm",
+                first_sample["input"]
+            )
+
+            # Generate plan
+            from main import TASK_DESCRIPTION  # Import task description
+            if self.config.use_multi_agent_planner:
+                from plan.multi_agent_planner import MultiAgentPlanner
+                planner = MultiAgentPlanner()
+                plan, _ = await planner.generate_plan(
+                    task_description=TASK_DESCRIPTION,
+                    algorithm_knowledge=knowledge,
+                    use_sequential=self.config.use_sequential_generation,
+                    verbose=False  # Suppress detailed planning logs in batch mode
+                )
+            else:
+                from plan.iterative_planner import IterativePlanner
+                planner = IterativePlanner()
+                plan = await planner.generate_two_stage_plan(
+                    task_description=TASK_DESCRIPTION,
+                    algorithm_knowledge=knowledge,
+                    enhance_prompts=True
+                )
+
+            plan_time = time_module.time() - plan_start
+
+            # Print condensed summary
+            stage_names = [s.id for s in plan.stages]
+            print(f"\n✅ Plan {batch_group_id + 1}/{num_groups} complete: {len(plan.stages)} stages [{', '.join(stage_names)}] ({plan_time:.1f}s)", flush=True)
+
+            return plan, knowledge
+
         # Initialize timing
         self.start_time = time.time()
         start_datetime = datetime.now()
 
-        print(f"\n⏳ Running {batch_size} experiments concurrently (max {self.config.max_concurrent} at once)...")
+        print(f"\n⏳ Running {batch_size} experiments in batch groups...")
         print("=" * 80)
 
-        # Run experiments concurrently with semaphore for rate limiting
-        semaphore = asyncio.Semaphore(self.config.max_concurrent)
+        # Process samples in batch groups sequentially
+        all_results = []
         completed_count = 0
+        num_groups = (len(sample_indices) + cache_size - 1) // cache_size
 
-        async def run_with_semaphore(sample_idx: int) -> ExperimentResult:
-            nonlocal completed_count
-            async with semaphore:
-                result = await self.run_single_experiment(sample_idx)
-                completed_count += 1
-                self.print_progress(completed_count, batch_size, result)
-                return result
+        for batch_group_id in range(num_groups):
+            # Determine which samples belong to this batch group
+            group_start_idx = batch_group_id * cache_size
+            group_end_idx = min(group_start_idx + cache_size, len(sample_indices))
+            group_sample_indices = sample_indices[group_start_idx:group_end_idx]
 
-        # Create all tasks and run them concurrently
-        tasks = [run_with_semaphore(sample_idx) for sample_idx in sample_indices]
-        self.results = await asyncio.gather(*tasks)
+            # Generate plan for this batch group
+            try:
+                plan, knowledge = await generate_plan_for_group(batch_group_id)
+                plan_cache[batch_group_id] = (plan, knowledge)
+            except Exception as e:
+                print(f"❌ Plan generation failed for group {batch_group_id + 1}/{num_groups}: {e}")
+                # Create error results for all samples in this group
+                for sample_idx in group_sample_indices:
+                    error_result = ExperimentResult(
+                        sample_idx=sample_idx,
+                        sample_input="Plan generation failed",
+                        expected=False,
+                        predicted=False,
+                        is_correct=False,
+                        execution_time=0.0,
+                        num_stages=0,
+                        error=f"Plan generation failed: {e}"
+                    )
+                    all_results.append(error_result)
+                    completed_count += 1
+                continue
+
+            # Execute samples in this group concurrently
+            print(f"\n⚡ Executing {len(group_sample_indices)} samples from batch group {batch_group_id + 1}/{num_groups}...")
+            print("-" * 80)
+
+            semaphore = asyncio.Semaphore(self.config.max_concurrent)
+
+            async def run_with_semaphore(sample_idx: int) -> ExperimentResult:
+                nonlocal completed_count
+                async with semaphore:
+                    result = await self.run_single_experiment(
+                        sample_idx,
+                        cached_plan=plan,
+                        cached_knowledge=knowledge
+                    )
+                    completed_count += 1
+                    self.print_progress(completed_count, batch_size, result)
+                    return result
+
+            # Execute all samples in this group concurrently
+            group_tasks = [run_with_semaphore(idx) for idx in group_sample_indices]
+            group_results = await asyncio.gather(*group_tasks)
+            all_results.extend(group_results)
+
+        self.results = all_results
 
         # Calculate final metrics
         end_time = time.time()

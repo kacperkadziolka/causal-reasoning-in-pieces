@@ -9,10 +9,51 @@ from pydantic_ai import Agent
 from knowledge.extractor import EnhancedKnowledgeExtractor
 from plan.iterative_planner import IterativePlanner
 from plan.multi_agent_planner import MultiAgentPlanner
+from plan.models import Plan
 from execute.executor import run_plan
 from utils.logging_config import init_logger, get_logger
 
 load_dotenv()
+
+
+# Task description for PC Algorithm - used across the codebase
+TASK_DESCRIPTION = """
+Task: Given a natural-language input that contains a Premise and a Hypothesis, decide whether the Hypothesis is True or False under the Peter-Clark (PC) algorithm.
+
+- PC is a constraint-based causal discovery method that infers a causal equivalence class (CPDAG) from observational (in)dependence information.
+- Before deciding, reconstruct a global causal structure over all variables mentioned in the Premise; do NOT rely on pairwise or local checks.
+- Return True only if the claim holds in every DAG in the Markov equivalence class implied by the Premise; otherwise return False.
+
+ENVIRONMENT (VERY IMPORTANT):
+- You do NOT have a dataset and you MUST NOT propose to run new statistical CI tests.
+- All (in)dependence information is given EXPLICITLY in the Premise as text. Treat this as a PERFECT CI oracle.
+- The Premise will contain sentences like:
+    • "X correlates with Y"       → treat as: X and Y are dependent; there is an adjacency between X and Y.
+    • "X is independent of Y"    → treat as: X ⟂ Y | ∅.
+    • "X and Y are independent given Z" or
+      "X and Y are independent given Z and W and ..."
+                                   → treat as: X ⟂ Y | {Z, W, ...}.
+- The Premise claims to list ALL relevant statistical relations among the variables. You must therefore:
+    • Trust that if an independence X ⟂ Y | S is stated, it is true.
+    • NOT invent independencies that are not mentioned.
+    • When the PC algorithm conceptually "calls" CI(X, Y | S), answer it by checking whether the Premise explicitly states
+      that X and Y are independent given exactly S (or ∅); otherwise treat them as dependent under that conditioning set.
+- Do NOT generate or enumerate arbitrary conditioning sets beyond those explicitly mentioned in the Premise. You may only rely on
+  the conditioning sets that appear in the text.
+
+ALGORITHM REQUIREMENT:
+- Your plan must mirror the canonical Peter-Clark (PC) algorithm, and uses of CI(i, j | S) must be implemented via LOOKUP into the Premise as described above, not via new tests.
+- The decision MUST be based on the global causal structure (CPDAG) over all variables, not on a single pair or local cues.
+
+Input available in context: "input" (contains premise with variables, correlations, conditional independencies, and hypothesis).
+
+CRITICAL OUTPUT FORMAT:
+- The final stage MUST output a SIMPLE BOOLEAN VALUE (true or false), NOT a nested object.
+- The output should be a single key with a boolean value, for example: {"decision": true} or {"result": false}
+- DO NOT output nested objects like {"decision": {"holds": true, "explanation": "..."}}
+- DO NOT include explanation fields - just the boolean decision.
+- The schema for the final stage MUST specify a simple boolean type, not an object type.
+"""
 
 
 def extract_boolean_from_result(
@@ -427,7 +468,10 @@ CRITICAL OUTPUT FORMAT: The final stage must output ONLY a boolean value (true o
 async def run_simple_workflow(
     sample: pd.Series,
     use_sequential_generation: bool = False,
-    use_multi_agent_planner: bool = False
+    use_multi_agent_planner: bool = False,
+    cached_plan: Optional[Plan] = None,
+    cached_knowledge: Optional[str] = None,
+    verbose: bool = True
 ) -> Optional[Dict[str, Any]]:
     """
     Run a simple workflow using backup functions for performance comparison.
@@ -440,13 +484,17 @@ async def run_simple_workflow(
         use_sequential_generation: If True, generate stage prompts sequentially
                                    (only used with multi-agent planner)
         use_multi_agent_planner: If True, use MultiAgentPlanner instead of IterativePlanner
+        cached_plan: Optional pre-generated plan to skip planning phase
+        cached_knowledge: Optional pre-extracted knowledge to skip extraction phase
+        verbose: If True, show detailed execution logs; if False, show minimal output
 
     Returns:
         Dictionary with execution results or None if failed
     """
 
-    print("\n🚀 SIMPLE WORKFLOW")
-    print("=" * 60)
+    if verbose:
+        print("\n🚀 SIMPLE WORKFLOW")
+        print("=" * 60)
 
     task_algorithm = "Peter-Clark (PC) Algorithm"
 #     task_description = """
@@ -462,91 +510,76 @@ async def run_simple_workflow(
 
 # CRITICAL OUTPUT FORMAT: The final stage must output ONLY a boolean value (true or false).
 # """
-    task_description = """
-Task: Given a natural-language input that contains a Premise and a Hypothesis, decide whether the Hypothesis is True or False under the Peter-Clark (PC) algorithm.
+    task_description = TASK_DESCRIPTION  # Use module constant
 
-- PC is a constraint-based causal discovery method that infers a causal equivalence class (CPDAG) from observational (in)dependence information.
-- Before deciding, reconstruct a global causal structure over all variables mentioned in the Premise; do NOT rely on pairwise or local checks.
-- Return True only if the claim holds in every DAG in the Markov equivalence class implied by the Premise; otherwise return False.
-
-ENVIRONMENT (VERY IMPORTANT):
-- You do NOT have a dataset and you MUST NOT propose to run new statistical CI tests.
-- All (in)dependence information is given EXPLICITLY in the Premise as text. Treat this as a PERFECT CI oracle.
-- The Premise will contain sentences like:
-    • "X correlates with Y"       → treat as: X and Y are dependent; there is an adjacency between X and Y.
-    • "X is independent of Y"    → treat as: X ⟂ Y | ∅.
-    • "X and Y are independent given Z" or
-      "X and Y are independent given Z and W and ..." 
-                                   → treat as: X ⟂ Y | {Z, W, ...}.
-- The Premise claims to list ALL relevant statistical relations among the variables. You must therefore:
-    • Trust that if an independence X ⟂ Y | S is stated, it is true.
-    • NOT invent independencies that are not mentioned.
-    • When the PC algorithm conceptually "calls" CI(X, Y | S), answer it by checking whether the Premise explicitly states
-      that X and Y are independent given exactly S (or ∅); otherwise treat them as dependent under that conditioning set.
-- Do NOT generate or enumerate arbitrary conditioning sets beyond those explicitly mentioned in the Premise. You may only rely on
-  the conditioning sets that appear in the text.
-
-ALGORITHM REQUIREMENT:
-- Your plan must mirror the canonical Peter-Clark (PC) algorithm, and uses of CI(i, j | S) must be implemented via LOOKUP into the Premise as described above, not via new tests.
-- The decision MUST be based on the global causal structure (CPDAG) over all variables, not on a single pair or local cues.
-
-Input available in context: "input" (contains premise with variables, correlations, conditional independencies, and hypothesis).
-
-CRITICAL OUTPUT FORMAT:
-- The final stage MUST output a SIMPLE BOOLEAN VALUE (true or false), NOT a nested object.
-- The output should be a single key with a boolean value, for example: {"decision": true} or {"result": false}
-- DO NOT output nested objects like {"decision": {"holds": true, "explanation": "..."}}
-- DO NOT include explanation fields - just the boolean decision.
-- The schema for the final stage MUST specify a simple boolean type, not an object type.
-"""
-
-    print("\n📚 STEP 1: Knowledge Extraction")
-    print("-" * 30)
-    extractor = EnhancedKnowledgeExtractor()
-    knowledge = await extractor.extract_simple_knowledge(task_algorithm, sample["input"])
-    print(f"✅ Knowledge extracted: {knowledge}")
-
-    print("\n🔄 STEP 2: Planning")
-    print("-" * 30)
-
-    if use_multi_agent_planner:
-        print("Using MultiAgentPlanner" + (" (SEQUENTIAL mode)" if use_sequential_generation else " (BATCH mode)"))
-        planner = MultiAgentPlanner()
-        plan, metadata = await planner.generate_plan(
-            task_description=task_description,
-            algorithm_knowledge=knowledge,
-            use_sequential=use_sequential_generation
-        )
-        print(f"✅ Planning successful: {len(plan.stages)} stages")
-        print(f"   Generation mode: {metadata.get('generation_mode', 'unknown')}")
+    # STEP 1: Knowledge Extraction (skip if cached)
+    if cached_knowledge is not None:
+        if verbose:
+            print("📦 Using cached knowledge")
+        knowledge = cached_knowledge
     else:
-        print("Using IterativePlanner (two-stage planning)")
-        planner = IterativePlanner()
-        # Set enhance_prompts=True to enable prompt quality improvements
-        plan = await planner.generate_two_stage_plan(
-            task_description=task_description,
-            algorithm_knowledge=knowledge,
-            enhance_prompts=True  # Enable prompt enhancement
-        )
-        print(f"✅ Planning successful: {len(plan.stages)} stages")
+        if verbose:
+            print("\n📚 STEP 1: Knowledge Extraction")
+            print("-" * 30)
+        extractor = EnhancedKnowledgeExtractor()
+        knowledge = await extractor.extract_simple_knowledge(task_algorithm, sample["input"])
+        if verbose:
+            print(f"✅ Knowledge extracted: {knowledge}")
+
+    # STEP 2: Planning (skip if cached)
+    if cached_plan is not None:
+        if verbose:
+            print("📦 Using cached plan")
+        plan = cached_plan
+    else:
+        if verbose:
+            print("\n🔄 STEP 2: Planning")
+            print("-" * 30)
+
+        if use_multi_agent_planner:
+            if verbose:
+                print("Using MultiAgentPlanner" + (" (SEQUENTIAL mode)" if use_sequential_generation else " (BATCH mode)"))
+            planner = MultiAgentPlanner()
+            plan, metadata = await planner.generate_plan(
+                task_description=task_description,
+                algorithm_knowledge=knowledge,
+                use_sequential=use_sequential_generation
+            )
+            if verbose:
+                print(f"✅ Planning successful: {len(plan.stages)} stages")
+                print(f"   Generation mode: {metadata.get('generation_mode', 'unknown')}")
+        else:
+            if verbose:
+                print("Using IterativePlanner (two-stage planning)")
+            planner = IterativePlanner()
+            # Set enhance_prompts=True to enable prompt quality improvements
+            plan = await planner.generate_two_stage_plan(
+                task_description=task_description,
+                algorithm_knowledge=knowledge,
+                enhance_prompts=True  # Enable prompt enhancement
+            )
+            if verbose:
+                print(f"✅ Planning successful: {len(plan.stages)} stages")
 
     # logger = get_logger()
     # logger.plan_structure(plan.model_dump_json(indent=2))
 
-    print("\n⚡ STEP 3: Execution")
-    print("-" * 30)
+    if verbose:
+        print("\n⚡ STEP 3: Execution")
+        print("-" * 30)
     initial_context = {"input": sample["input"]}
-    final_context = await run_plan(plan, initial_context)
+    final_context = await run_plan(plan, initial_context, verbose=verbose)
     final_key = plan.final_key or "result"
     final_result = final_context.get(final_key)
 
-    print("✅ Execution completed")
-    # print(f"Final context: {final_context}")
-    print(f"🎯 Final result key: '{final_key}'")
-    print(f"📊 Final result: {final_result}")
+    if verbose:
+        print("✅ Execution completed")
+        # print(f"Final context: {final_context}")
+        print(f"🎯 Final result key: '{final_key}'")
+        print(f"📊 Final result: {final_result}")
 
-    print("\n📊 STEP 4: Evaluation")
-    print("-" * 30)
+        print("\n📊 STEP 4: Evaluation")
+        print("-" * 30)
     expected = bool(sample['label'])
 
     # Convert final_result to boolean using intelligent extraction
@@ -567,9 +600,10 @@ CRITICAL OUTPUT FORMAT:
 
     is_correct = actual == expected
 
-    print(f"🎯 Predicted: {actual}")
-    print(f"📊 Expected: {expected}")
-    print(f"✅ Result: {'CORRECT' if is_correct else 'INCORRECT'}")
+    if verbose:
+        print(f"🎯 Predicted: {actual}")
+        print(f"📊 Expected: {expected}")
+        print(f"✅ Result: {'CORRECT' if is_correct else 'INCORRECT'}")
 
     return {
         "sample_idx": sample.name,

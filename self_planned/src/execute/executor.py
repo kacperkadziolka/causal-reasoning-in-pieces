@@ -148,7 +148,14 @@ def preprocess_template(template: str, read_data: Dict[str, Any]) -> str:
     return template
 
 
-async def run_stage(stage: Stage, context: Dict[str, Any]) -> Dict[str, Any]:
+async def run_stage(stage: Stage, context: Dict[str, Any], verbose: bool = True) -> Dict[str, Any]:
+    """Execute a single stage of the plan.
+
+    Args:
+        stage: The stage to execute
+        context: Current execution context
+        verbose: If True, print execution details; if False, suppress output
+    """
     import time
 
     logger = get_logger()
@@ -157,7 +164,8 @@ async def run_stage(stage: Stage, context: Dict[str, Any]) -> Dict[str, Any]:
     # Get the data this stage needs to read
     read_data = {key: context.get(key) for key in stage.reads}
 
-    logger.stage_header(stage.id, stage.reads, stage.writes)
+    if verbose:
+        logger.stage_header(stage.id, stage.reads, stage.writes)
 
     # logger.debug_print(f"\n🔍 DEBUG - Stage {stage.id}:")
     # logger.debug_print(f"     📥 Input data: {read_data}")
@@ -314,7 +322,7 @@ async def run_stage(stage: Stage, context: Dict[str, Any]) -> Dict[str, Any]:
             output_preview.append(f"{key}:{str(value)[:20]}")
 
     # In normal mode: show concise completion info
-    if not logger.debug:
+    if verbose and not logger.debug:
         logger.stage_complete(execution_time, ', '.join(output_info))
 
         # Show output preview on next line with indentation
@@ -346,14 +354,21 @@ async def run_stage(stage: Stage, context: Dict[str, Any]) -> Dict[str, Any]:
     return stage_output
 
 
-async def run_plan(plan: Plan, initial_context: Dict[str, Any]) -> Dict[str, Any]:
-    """Execute a complete plan by running all stages sequentially."""
+async def run_plan(plan: Plan, initial_context: Dict[str, Any], verbose: bool = True) -> Dict[str, Any]:
+    """Execute a complete plan by running all stages sequentially.
+
+    Args:
+        plan: The execution plan with stages
+        initial_context: Initial context data
+        verbose: If True, print detailed execution logs; if False, suppress output
+    """
     import time
 
     logger = get_logger()
     plan_start_time = time.time()
 
-    print(f"\n🎯 Executing {len(plan.stages)} stages:")
+    if verbose:
+        print(f"\n🎯 Executing {len(plan.stages)} stages:")
     context = dict(initial_context)
 
     # logger.debug_print(f"🔍 DEBUG - Initial context: {initial_context}")
@@ -363,7 +378,7 @@ async def run_plan(plan: Plan, initial_context: Dict[str, Any]) -> Dict[str, Any
     for i, stage in enumerate(plan.stages, 1):
         try:
             # Execute the stage
-            stage_output = await run_stage(stage, context)
+            stage_output = await run_stage(stage, context, verbose=verbose)
 
             # Update context with stage outputs
             for key in stage.writes:
@@ -377,6 +392,7 @@ async def run_plan(plan: Plan, initial_context: Dict[str, Any]) -> Dict[str, Any
 
     total_time = time.time() - plan_start_time
     final_result = context.get(plan.final_key, "<<NOT_FOUND>>")
-    print(f"\n🎯 Completed in {total_time:.1f}s → {final_result}")
+    if verbose:
+        print(f"\n🎯 Completed in {total_time:.1f}s → {final_result}")
 
     return context

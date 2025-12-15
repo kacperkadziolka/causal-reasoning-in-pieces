@@ -12,7 +12,7 @@ def parse_args():
     parser.add_argument(
         "--batch-size", "-b",
         type=int,
-        default=100,
+        default=4,
         help="Number of experiments to run (max: dataset size)"
     )
 
@@ -38,7 +38,7 @@ def parse_args():
     parser.add_argument(
         "--max-concurrent", "-c",
         type=int,
-        default=10,
+        default=2,
         help="Maximum number of concurrent experiments [default: 10]"
     )
 
@@ -71,15 +71,36 @@ def parse_args():
     parser.add_argument(
         "--sequential-generation",
         action="store_true",
-        default=False,  # Change to True to make sequential the default
+        default=True,  # Sequential mode is now the default
         help="Generate stage prompts sequentially instead of batch (only with --multi-agent-planner)"
     )
 
     parser.add_argument(
         "--multi-agent-planner",
         action="store_true",
-        default=False,  # Change to True to make multi-agent planner the default
+        default=True,  # Multi-agent planner is now the default
         help="Use MultiAgentPlanner instead of IterativePlanner"
+    )
+
+    parser.add_argument(
+        "--use-plan-caching",
+        action="store_true",
+        default=True,
+        help="Enable plan caching (regenerate plan every N samples) [default: enabled]"
+    )
+
+    parser.add_argument(
+        "--no-plan-caching",
+        action="store_false",
+        dest="use_plan_caching",
+        help="Disable plan caching (regenerate plan for every sample)"
+    )
+
+    parser.add_argument(
+        "--plan-cache-size",
+        type=int,
+        default=None,
+        help="Number of samples sharing one plan (default: same as --max-concurrent)"
     )
 
     return parser.parse_args()
@@ -130,7 +151,9 @@ async def main():
         save_summary=not args.no_summary,
         sample_indices=sample_indices,
         use_sequential_generation=args.sequential_generation,
-        use_multi_agent_planner=args.multi_agent_planner
+        use_multi_agent_planner=args.multi_agent_planner,
+        use_plan_caching=args.use_plan_caching,
+        plan_cache_size=args.plan_cache_size
     )
 
     print("🔧 Experiment Configuration:")
@@ -143,6 +166,10 @@ async def main():
     print(f"   Save summary: {config.save_summary}")
     print(f"   Multi-agent planner: {config.use_multi_agent_planner}")
     print(f"   Sequential generation: {config.use_sequential_generation}")
+    print(f"   Plan caching: {config.use_plan_caching}")
+    if config.use_plan_caching:
+        cache_size = config.plan_cache_size or config.max_concurrent
+        print(f"   Plan cache size: {cache_size} samples per plan")
 
     # Run experiments
     runner = BatchExperimentRunner(config)

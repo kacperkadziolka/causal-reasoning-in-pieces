@@ -467,7 +467,8 @@ Generate the most detailed, robust prompt and schema possible for this ONE stage
         task_description: str,
         algorithm_knowledge: str,
         use_sequential: bool = False,
-        max_retries: int = 2
+        max_retries: int = 2,
+        verbose: bool = True
     ) -> Tuple[Plan, Dict[str, Any]]:
         """
         Generate a plan using multi-agent pipeline.
@@ -481,30 +482,36 @@ Generate the most detailed, robust prompt and schema possible for this ONE stage
                            Sequential mode produces more detailed prompts but
                            requires ~2× more LLM calls.
             max_retries: Maximum validation retry attempts
+            verbose: If True, print detailed planning logs; if False, suppress output
 
         Returns:
             (plan, metadata) where metadata contains intermediate results for debugging
         """
         logger = get_logger()
 
-        logger.section("🎯 MULTI-AGENT PLANNING PIPELINE")
+        if verbose:
+            logger.section("🎯 MULTI-AGENT PLANNING PIPELINE")
 
         metadata = {}
 
         # Step 1: Generate Stage Sequence
-        logger.subsection("📋 STEP 1: Generating Stage Sequence...")
+        if verbose:
+            logger.subsection("📋 STEP 1: Generating Stage Sequence...")
         sequence = await self._generate_sequence(task_description, algorithm_knowledge)
         metadata["sequence"] = sequence.model_dump()
-        logger.success(f"Generated {len(sequence.stages)} stages")
-        for stage in sequence.stages:
-            logger.planning_progress(f"   - {stage['id']}: {stage['reads']} → {stage['writes']}", show_always=True)
+        if verbose:
+            logger.success(f"Generated {len(sequence.stages)} stages")
+            for stage in sequence.stages:
+                logger.planning_progress(f"   - {stage['id']}: {stage['reads']} → {stage['writes']}", show_always=True)
 
         # Step 2 & 3: Generate Prompts and Schemas
         if use_sequential:
-            logger.subsection("✍️  STEP 2 & 3: Designing Prompts & Schemas SEQUENTIALLY (one stage at a time)...")
+            if verbose:
+                logger.subsection("✍️  STEP 2 & 3: Designing Prompts & Schemas SEQUENTIALLY (one stage at a time)...")
             prompt_library, schema_library = await self._generate_prompts_and_schemas_sequential(
                 stage_sequence=sequence.stages,
-                algorithm_knowledge=algorithm_knowledge
+                algorithm_knowledge=algorithm_knowledge,
+                verbose=verbose
             )
             # Convert to expected format
             prompts = PromptLibrary(prompts=prompt_library)
@@ -512,21 +519,27 @@ Generate the most detailed, robust prompt and schema possible for this ONE stage
             metadata["prompts"] = prompts.model_dump()
             metadata["schemas"] = schemas.model_dump()
             metadata["generation_mode"] = "sequential"
-            logger.success(f"Generated {len(prompts.prompts)} detailed prompt templates (sequential mode)")
+            if verbose:
+                logger.success(f"Generated {len(prompts.prompts)} detailed prompt templates (sequential mode)")
         else:
-            logger.subsection("✍️  STEP 2: Designing Prompt Templates (BATCH mode)...")
+            if verbose:
+                logger.subsection("✍️  STEP 2: Designing Prompt Templates (BATCH mode)...")
             prompts = await self._generate_prompts(sequence, algorithm_knowledge)
             metadata["prompts"] = prompts.model_dump()
-            logger.success(f"Generated {len(prompts.prompts)} prompt templates")
+            if verbose:
+                logger.success(f"Generated {len(prompts.prompts)} prompt templates")
 
-            logger.subsection("📐 STEP 3: Designing Output Schemas (BATCH mode)...")
+            if verbose:
+                logger.subsection("📐 STEP 3: Designing Output Schemas (BATCH mode)...")
             schemas = await self._generate_schemas(sequence, algorithm_knowledge)
             metadata["schemas"] = schemas.model_dump()
             metadata["generation_mode"] = "batch"
-            logger.success(f"Generated {len(schemas.schemas)} schemas")
+            if verbose:
+                logger.success(f"Generated {len(schemas.schemas)} schemas")
 
         # Step 4: Validate & Align
-        logger.subsection("🔍 STEP 4: Validating & Aligning Plan...")
+        if verbose:
+            logger.subsection("🔍 STEP 4: Validating & Aligning Plan...")
 
         # Determine final key (last stage's first write, or explicit from task)
         final_key = self._determine_final_key(sequence, task_description)
@@ -535,10 +548,12 @@ Generate the most detailed, robust prompt and schema possible for this ONE stage
             sequence, prompts, schemas, final_key, max_retries
         )
         metadata["final_key"] = final_key
-        logger.success("Plan validated and aligned")
-        logger.info(f"   Final output key: '{final_key}'")
+        if verbose:
+            logger.success("Plan validated and aligned")
+            logger.info(f"   Final output key: '{final_key}'")
 
-        logger.section("✅ MULTI-AGENT PLANNING COMPLETE")
+        if verbose:
+            logger.section("✅ MULTI-AGENT PLANNING COMPLETE")
 
         return plan, metadata
 
@@ -797,10 +812,16 @@ Generate a prompt template that explicitly builds on previous stages and a schem
     async def _generate_prompts_and_schemas_sequential(
         self,
         stage_sequence: List[Dict],
-        algorithm_knowledge: str
+        algorithm_knowledge: str,
+        verbose: bool = True
     ) -> Tuple[Dict[str, str], Dict[str, Dict]]:
         """
         Generate prompts and schemas sequentially (one stage at a time).
+
+        Args:
+            stage_sequence: List of stage specifications
+            algorithm_knowledge: Extracted algorithm knowledge
+            verbose: If True, show detailed progress logs
 
         Returns:
             (prompt_library, schema_library)
@@ -817,7 +838,8 @@ Generate a prompt template that explicitly builds on previous stages and a schem
             stage_id = stage_spec['id']
             position = f"stage {idx + 1} of {total_stages}"
 
-            logger.planning_progress(f"   Generating details for {stage_id} ({position})...", show_always=True)
+            if verbose:
+                logger.planning_progress(f"   Generating details for {stage_id} ({position})...", show_always=True)
 
             # Generate prompt + schema with context of all previous stages
             details = await self._generate_stage_details_sequential(
@@ -841,7 +863,8 @@ Generate a prompt template that explicitly builds on previous stages and a schem
                 "output_schema": details["output_schema"]
             })
 
-            logger.planning_progress(f"   ✓ Generated {stage_id}: prompt={len(details['prompt_template'])} chars", show_always=True)
+            if verbose:
+                logger.planning_progress(f"   ✓ Generated {stage_id}: prompt={len(details['prompt_template'])} chars", show_always=True)
 
         return prompt_library, schema_library
 
