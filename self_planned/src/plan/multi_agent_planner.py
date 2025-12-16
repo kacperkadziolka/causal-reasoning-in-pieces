@@ -117,10 +117,10 @@ Focus on algorithmic correctness and data flow, NOT implementation details.
             output_type=PromptLibrary,
             system_prompt="""
 # ROLE
-You are a prompt engineering specialist for LLM execution stages.
+You are a prompt engineering specialist for LLM execution stages with focus on algorithmic correctness.
 
 # TASK
-Given high-level stage descriptions, create detailed prompt templates that will guide LLM execution.
+Given high-level stage descriptions, create detailed prompt templates that will guide LLM execution with algorithmic rigor and self-validation.
 
 # INPUT
 You receive:
@@ -139,15 +139,32 @@ EVERY prompt template MUST follow this exact format:
 # TASK
 [One clear sentence describing what to do - NO placeholders here]
 
+# ALGORITHMIC REQUIREMENTS
+[Extract constraints and requirements from algorithm knowledge]
+- MUST conditions (mandatory steps that cannot be skipped)
+- MUST NOT conditions (prohibited actions that would violate algorithm)
+- Invariants that must hold (mathematical properties to preserve)
+- Systematic procedures to follow (e.g., "test all edges", "check in order")
+
 # INPUT DATA
 {read_key_1}
 {read_key_2}
 [... one {placeholder} line for EACH key in the stage's reads array]
 
-# STEP-BY-STEP
-1. [Instruction referencing "the data provided above" - NO placeholders]
-2. [Instruction referencing "the input" - NO placeholders]
-3. [Instruction referencing specific aspects - NO placeholders]
+# STEP-BY-STEP INSTRUCTIONS
+1. [Detailed instruction referencing "the data provided above" - NO placeholders]
+2. [Instruction referencing "the input" with specific actions - NO placeholders]
+3. [Instruction referencing specific aspects with validation - NO placeholders]
+[... continue with all necessary steps]
+
+# SELF-VALIDATION CHECKLIST
+Before returning output, verify:
+- [ ] All MUST conditions from requirements were satisfied
+- [ ] No MUST NOT conditions were violated
+- [ ] All systematic procedures were followed completely
+- [ ] Output structure matches the expected format
+- [ ] Mathematical invariants hold in the output
+[... add stage-specific validation points]
 
 # OUTPUT
 Return JSON with the key(s): [list write keys for this stage]
@@ -155,20 +172,45 @@ Return JSON with the key(s): [list write keys for this stage]
 
 # CRITICAL RULES
 1. INPUT DATA section: EXACTLY one {placeholder} for each reads key
-2. TASK section: NO placeholders, just description
-3. STEP-BY-STEP: NO placeholders, use references like "the data above"
-4. OUTPUT section: Specify exact keys that match writes array
-5. Keep prompts focused on DATA TRANSFORMATION, not algorithmic theory
-6. Use concrete, actionable language
+2. TASK section: NO placeholders, just clear description
+3. ALGORITHMIC REQUIREMENTS: Extract from algorithm knowledge, be specific and actionable
+4. STEP-BY-STEP: NO placeholders, use references like "the data above", make steps detailed and precise
+5. SELF-VALIDATION CHECKLIST: Include verification steps that catch common errors
+6. OUTPUT section: Specify exact keys that match writes array
+7. Focus on ALGORITHMICALLY-CORRECT data transformation with validation
+8. Use concrete, actionable language with mathematical precision
 
 # QUALITY CRITERIA
-- Clear, unambiguous instructions
-- Focuses on transforming input → output
-- Includes validation hints where appropriate
-- References mathematical context from algorithm knowledge
-- Each step is a specific action on the input data
+- Clear, unambiguous instructions with algorithmic rigor
+- Focuses on transforming input → output CORRECTLY according to algorithm
+- Includes extensive validation to catch errors before output
+- References mathematical context and constraints from algorithm knowledge
+- Each step is a specific, verifiable action on the input data
+- Requirements section enforces algorithmic correctness
+- Checklist ensures self-validation before output
 
-Generate comprehensive, execution-ready prompts.
+# EXAMPLES OF GOOD REQUIREMENTS
+
+For "Skeleton Construction" stage:
+```
+# ALGORITHMIC REQUIREMENTS
+- MUST start with complete graph (all n*(n-1)/2 edges for n variables)
+- MUST check EACH edge against conditional independence statements
+- MUST only remove edges with explicit CI justification from input
+- MUST record separating set for every removed edge
+- MUST NOT skip any edges in the systematic testing process
+```
+
+For "Collider Identification" stage:
+```
+# ALGORITHMIC REQUIREMENTS
+- MUST identify ALL unshielded triples (X-Y-Z where X,Z not adjacent)
+- MUST check separation sets for each unshielded triple
+- MUST orient X→Y←Z only if Y ∉ SepSet(X,Z)
+- MUST NOT create new edges, only orient existing ones
+```
+
+Generate comprehensive, algorithmically-rigorous, execution-ready prompts with built-in validation.
 """
         )
 
@@ -395,6 +437,14 @@ Your prompt_template MUST follow this exact format:
 [Example: "Using the skeleton graph from stage 1..." or "Building on the separation sets identified in stage 2..."]
 [SKIP this section if this is the first stage]
 
+# ALGORITHMIC REQUIREMENTS
+[Extract constraints and requirements from algorithm knowledge]
+- MUST conditions (mandatory steps that cannot be skipped)
+- MUST NOT conditions (prohibited actions that would violate algorithm)
+- Invariants that must hold (mathematical properties to preserve)
+- Systematic procedures to follow (e.g., "test all edges", "check in order")
+[Be MORE detailed than batch mode - this is sequential generation]
+
 # INPUT DATA
 {read_key_1}
 {read_key_2}
@@ -405,7 +455,18 @@ Available data at this point: {available_data}
 # STEP-BY-STEP INSTRUCTIONS
 1. [Detailed step using specific inputs - reference previous stage outputs when relevant]
 2. [Build on previous stage outputs explicitly if applicable]
-3. [More detailed instructions...]
+3. [More detailed instructions with specific actions and validation...]
+[... continue with comprehensive step-by-step breakdown]
+
+# SELF-VALIDATION CHECKLIST
+Before returning output, verify:
+- [ ] All MUST conditions from requirements were satisfied
+- [ ] No MUST NOT conditions were violated
+- [ ] All systematic procedures were followed completely
+- [ ] Output structure matches the expected format
+- [ ] Mathematical invariants hold in the output
+- [ ] Results are consistent with previous stage outputs
+[... add stage-specific validation points]
 
 # OUTPUT
 Return JSON with the key(s): [list write keys for this stage]
@@ -415,10 +476,13 @@ Return JSON with the key(s): [list write keys for this stage]
 1. **Context References**: Explicitly mention how this stage builds on previous stages (if applicable)
 2. **Input Data Section**: EXACTLY one {placeholder} for each reads key
 3. **Task Section**: NO placeholders, just clear description
-4. **Step-by-Step**: NO placeholders in instructions, use references like "the data above" or "the skeleton from earlier"
-5. **Detail Level**: Be 2-3× more detailed than a batch-generated prompt
-6. **Data Flow**: Make the connection to previous stages explicit and clear
-7. **Placeholders**: All placeholders must exist in {available_data}
+4. **Algorithmic Requirements**: Extract from algorithm knowledge, be VERY specific and actionable
+5. **Step-by-Step**: NO placeholders in instructions, use references like "the data above", be 2-3× more detailed
+6. **Self-Validation Checklist**: Include comprehensive verification steps to catch errors
+7. **Detail Level**: Be 2-3× more detailed than a batch-generated prompt with more validation
+8. **Data Flow**: Make the connection to previous stages explicit and clear
+9. **Placeholders**: All placeholders must exist in {available_data}
+10. **Algorithmic Rigor**: Focus on CORRECTNESS, not just transformation
 
 # SCHEMA STRUCTURE
 Your output_schema MUST follow this pattern:
