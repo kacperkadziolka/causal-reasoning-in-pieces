@@ -3,356 +3,339 @@ import asyncio
 
 
 class EnhancedKnowledgeExtractor:
-    """Enhanced knowledge extraction with advanced prompt engineering techniques"""
+    """
+    Knowledge extraction using two focused agents:
+    1. Canonical Stages Agent - extracts algorithmic stages
+    2. Constraints Agent - extracts operational constraints
+
+    Both run in parallel for speed, then outputs are merged.
+    """
 
     def __init__(self) -> None:
-        # Foundation agent with structured output and clear markers
-        self.foundation_agent = Agent(
+        # Agent 1: Canonical Stages Extractor
+        self.stages_agent = Agent(
             "openai:o3-mini",
             output_type=str,
             system_prompt="""
 # ROLE
-You are a distinguished mathematical foundations expert specializing in algorithm theory.
+You are an algorithm expert specializing in canonical algorithmic decomposition.
 
 # TASK
-Provide the core mathematical foundations for algorithms with rigorous mathematical precision.
-
-# OUTPUT STRUCTURE
-Use the following markdown structure with clear markers:
-
-## <MATHEMATICAL_DEFINITION>
-[Formal mathematical definition with proper notation]
-</MATHEMATICAL_DEFINITION>
-
-## <THEORETICAL_BASIS>
-[Key mathematical concepts, assumptions, and theoretical foundations]
-</THEORETICAL_BASIS>
-
-## <MATHEMATICAL_PROPERTIES>
-[Important mathematical properties, guarantees, and constraints]
-</MATHEMATICAL_PROPERTIES>
-
-# QUALITY REQUIREMENTS
-- Use precise mathematical notation (LaTeX-style where helpful: $X \perp Y | Z$)
-- Include formal definitions for all key concepts
-- Reference standard mathematical literature conventions
-- Be comprehensive yet concise
-- Focus on mathematical rigor over implementation details
-
-# EXAMPLE FORMAT
-For "Example Algorithm":
-
-## <MATHEMATICAL_DEFINITION>
-The Example Algorithm is a constraint-based method that operates on...
-</MATHEMATICAL_DEFINITION>
-
-Provide the mathematical foundations within the specified markers.
-"""
-        )
-
-        self.procedure_agent = Agent(
-            "openai:o3-mini",
-            output_type=str,
-            system_prompt="""
-# ROLE
-You are an expert algorithm proceduralist with deep knowledge of canonical algorithmic implementations.
-
-# TASK
-Provide detailed, step-by-step algorithmic procedures following academic standards.
-
-# OUTPUT STRUCTURE
-Use this exact markdown structure:
-
-## <CANONICAL_STEPS>
-1. **Step Name**: Detailed description
-   - Input: [specify input format]
-   - Process: [exact procedure]
-   - Output: [specify output format]
-   - Validation: [how to verify correctness]
-
-2. **Step Name**: Detailed description
-   [continue pattern]
-</CANONICAL_STEPS>
-
-## <DATA_STRUCTURES>
-- **Structure Name**: Description and purpose
-- **Structure Name**: Description and purpose
-</DATA_STRUCTURES>
-
-## <ALGORITHMIC_FLOW>
-[Description of how steps connect and data flows between them]
-</ALGORITHMIC_FLOW>
-
-# QUALITY REQUIREMENTS
-- Each step must have clear input/output specifications
-- Include validation criteria for each step
-- Specify data structure transformations
-- Cover edge cases and boundary conditions
-- Use academic terminology and standard naming conventions
-- Be implementation-ready but language-agnostic
-
-# CRITICAL
-Reference the content between markers (e.g., "As specified in <CANONICAL_STEPS>") when describing relationships.
-"""
-        )
-
-        self.validation_agent = Agent(
-            "openai:o3-mini",
-            output_type=str,
-            system_prompt="""
-# ROLE
-You are a rigorous algorithm validation specialist and quality assurance expert.
-
-# TASK
-Provide comprehensive validation criteria, error detection methods, and quality checks.
-
-# OUTPUT STRUCTURE
-Use this structured format with clear markers:
-
-## <VALIDATION_CRITERIA>
-### Per-Step Validation
-1. **Step Name Validation**:
-   - Correctness check: [specific validation method]
-   - Quality metrics: [measurable criteria]
-   - Error indicators: [what signals failure]
-
-### Cross-Step Validation
-- **Consistency checks**: [between steps]
-- **Invariant preservation**: [mathematical properties maintained]
-</VALIDATION_CRITERIA>
-
-## <COMMON_PITFALLS>
-- **Pitfall Name**: Description and prevention
-- **Pitfall Name**: Description and prevention
-</COMMON_PITFALLS>
-
-## <ERROR_RECOVERY>
-- **Error Type**: Detection method → Recovery strategy
-- **Error Type**: Detection method → Recovery strategy
-</ERROR_RECOVERY>
-
-# QUALITY REQUIREMENTS
-- Provide specific, measurable validation criteria
-- Include both automated and manual verification methods
-- Cover mathematical consistency checks
-- Address computational edge cases
-- Reference academic best practices
-- Be actionable and implementable
-
-# INSTRUCTION
-Always reference the marked sections when explaining relationships (e.g., "The criteria in <VALIDATION_CRITERIA> ensure...").
-"""
-        )
-
-        self.synthesis_agent = Agent(
-            "openai:o3-mini",
-            output_type=str,
-            system_prompt="""
-# ROLE
-You are an expert algorithm synthesist specializing in creating comprehensive, authoritative algorithm descriptions.
-
-# TASK
-Synthesize multiple knowledge perspectives into a definitive, well-structured algorithm description.
-
-# INPUT EXPECTATIONS
-You will receive three expert perspectives:
-1. Mathematical foundations (with <MATHEMATICAL_DEFINITION>, <THEORETICAL_BASIS>, <MATHEMATICAL_PROPERTIES> markers)
-2. Procedural details (with <CANONICAL_STEPS>, <DATA_STRUCTURES>, <ALGORITHMIC_FLOW> markers)
-3. Validation criteria (with <VALIDATION_CRITERIA>, <COMMON_PITFALLS>, <ERROR_RECOVERY> markers)
+Extract the canonical stages/steps of an algorithm as they appear in academic literature.
 
 # OUTPUT FORMAT
-Create a comprehensive synthesis using this exact structure:
+Use this exact structure:
 
-# ALGORITHM: [Algorithm Name]
+ALGORITHM: [Algorithm Name]
 
 ## <DEFINITION>
-[Comprehensive definition combining mathematical rigor from foundation perspective]
+[Brief, precise mathematical definition of the algorithm]
 </DEFINITION>
 
 ## <CANONICAL_STAGES>
-[Synthesized from <CANONICAL_STEPS>, enhanced with validation insights]
 
-1. **Stage Name**: [Mathematical description]
-   - **Input**: [From procedural analysis]
-   - **Process**: [Mathematical procedure + validation requirements]
-   - **Output**: [Mathematical structure specification]
-   - **Validation**: [From validation criteria]
+### Stage 1: [Stage Name]
+**Description**: [What this stage does mathematically]
+**Input**: [What data this stage receives]
+**Output**: [What data this stage produces]
+**Process**: [Brief description of the mathematical procedure]
 
-[Continue for all stages]
+### Stage 2: [Stage Name]
+[Continue same pattern for all stages...]
+
 </CANONICAL_STAGES>
 
 ## <KEY_MATHEMATICAL_OBJECTS>
-[Synthesized from <DATA_STRUCTURES> and <MATHEMATICAL_PROPERTIES>]
-- **Object Name**: Mathematical definition and computational representation
+List main data structures with their purpose:
+
+- **Object Name**: [Description and purpose]
+  Example: {"nodes": ["A", "B"], "edges": [...]}
+
+[Continue for all key objects...]
 </KEY_MATHEMATICAL_OBJECTS>
 
-## <IMPLEMENTATION_REQUIREMENTS>
-[Critical requirements from all perspectives]
-- **Mathematical**: [From <MATHEMATICAL_PROPERTIES>]
-- **Procedural**: [From <ALGORITHMIC_FLOW>]
-- **Validation**: [From <VALIDATION_CRITERIA>]
-</IMPLEMENTATION_REQUIREMENTS>
+# QUALITY REQUIREMENTS
+- Follow canonical algorithm definitions from academic literature
+- Each stage should be a distinct algorithmic phase
+- Include all stages, don't skip any
+- Use concrete variable names from the actual data when possible
+- Keep descriptions mathematically precise but concise
 
-## <QUALITY_ASSURANCE>
-[Comprehensive quality framework from validation perspective]
-</QUALITY_ASSURANCE>
+# EXAMPLE OUTPUT
+For "Peter-Clark (PC) Algorithm":
 
-# SYNTHESIS RULES
-1. **Preserve all marker content**: Include relevant material from each marked section
-2. **Resolve conflicts**: If perspectives differ, choose the most mathematically rigorous approach
-3. **Maintain coherence**: Ensure all sections work together logically
-4. **Cross-reference markers**: Reference specific marked sections when explaining relationships
-5. **Mathematical precision**: Prioritize mathematical accuracy over brevity
-6. **Implementation clarity**: Make the description implementation-ready
+ALGORITHM: Peter-Clark (PC) Algorithm
 
-# CRITICAL SUCCESS FACTORS
-- The <CANONICAL_STAGES> must be implementation-ready with precise mathematical specifications
-- Each stage must include validation criteria from <VALIDATION_CRITERIA>
-- Mathematical objects in <KEY_MATHEMATICAL_OBJECTS> must be clearly defined
-- The synthesis must be self-contained and authoritative
+## <DEFINITION>
+A constraint-based causal discovery method that constructs a CPDAG representing the Markov equivalence class of causal structures by testing conditional independence relations.
+</DEFINITION>
+
+## <CANONICAL_STAGES>
+
+### Stage 1: Graph Initialization
+**Description**: Construct a complete undirected graph
+**Input**: Set of variables V
+**Output**: Complete undirected graph G
+**Process**: Create a graph where every pair of distinct variables is connected
+
+### Stage 2: Skeleton Identification
+**Description**: Remove edges based on conditional independence tests
+**Input**: Complete graph, conditional independence data
+**Output**: Skeleton graph (reduced set of edges), separation sets
+**Process**: For each edge, test conditional independence; remove edge if independent and record separating set
+
+[Continue for remaining stages...]
+</CANONICAL_STAGES>
+
+Focus on the algorithmic structure, not implementation details.
 """
         )
 
-    async def extract_enhanced_knowledge(self, algorithm_name: str) -> str:
-        """Extract comprehensive algorithm knowledge using advanced prompt engineering"""
+        # Agent 2: Constraints Extractor
+        self.constraints_agent = Agent(
+            "openai:o3-mini",
+            output_type=str,
+            system_prompt="""
+# ROLE
+You are an algorithmic constraints specialist focusing on operational requirements and invariants.
 
-        print(f"🔍 Extracting enhanced knowledge for: {algorithm_name}")
-        print("📚 Gathering multiple expert perspectives...")
+# TASK
+Extract precise operational constraints for each algorithmic stage to prevent implementation errors.
 
-        # Use structured prompts with clear objectives
-        foundation_prompt = f"""
-# ALGORITHM REQUEST
-Provide mathematical foundations for the **{algorithm_name}** algorithm.
+# OUTPUT FORMAT
+Use this exact structure:
 
-# CONTEXT
-This knowledge will be used for algorithmic planning and implementation. Focus on mathematical rigor and theoretical completeness.
+## <STAGE_CONSTRAINTS>
 
-# SPECIFIC ALGORITHM
-{algorithm_name}
+### Stage 1: [Stage Name]
 
-Provide the mathematical foundations following the specified structure with clear markers.
+**Preconditions** (what must be true BEFORE):
+- [Specific condition about input state]
+- [Data availability requirement]
+
+**MUST Conditions** (mandatory operations that CANNOT be skipped):
+- MUST [specific mandatory operation with concrete details]
+- MUST [another mandatory operation]
+  Example: "MUST start with complete graph of n*(n-1)/2 edges (e.g., 10 edges for 5 variables)"
+
+**MUST NOT Conditions** (prohibited operations that would violate algorithm):
+- MUST NOT [specific forbidden action]
+- MUST NOT [another prohibition]
+  Example: "MUST NOT skip any edge pairs in testing"
+
+**Postconditions** (what must be true AFTER):
+- [Specific condition about output state]
+- [Size/count constraints]
+  Example: "Skeleton has ≤ n*(n-1)/2 edges"
+
+**Invariants** (properties preserved throughout this stage):
+- [Mathematical property that stays constant]
+- [Structural property to maintain]
+  Example: "Graph remains undirected"
+
+### Stage 2: [Stage Name]
+[Continue same pattern for all stages...]
+
+</STAGE_CONSTRAINTS>
+
+## <SYSTEMATIC_PROCEDURES>
+Procedures that must be followed systematically:
+
+- **[Procedure Name]**: [Detailed requirement]
+  Example: "Edge Testing: MUST test ALL edges, not just some"
+  Example: "Conditioning Set Order: MUST try sets in order of increasing size (0, 1, 2, ...)"
+
+</SYSTEMATIC_PROCEDURES>
+
+## <ALGORITHMIC_INVARIANTS>
+Global invariants that hold across ALL stages:
+
+- [Global mathematical property]
+- [Global structural constraint]
+  Example: "Graph must remain acyclic throughout all stages"
+
+</ALGORITHMIC_INVARIANTS>
+
+# QUALITY REQUIREMENTS
+1. **Be Extremely Specific**: Use concrete numbers, not vague terms
+   - ✅ "MUST start with 10 edges for 5 variables"
+   - ❌ "MUST start with some edges"
+
+2. **Quantify Everything**: Include size/count bounds
+   - ✅ "Skeleton has ≤ n*(n-1)/2 edges"
+   - ❌ "Skeleton has fewer edges"
+
+3. **Focus on Error Prevention**: What mistakes do people commonly make?
+   - "MUST check ALL items" (prevents skipping)
+   - "MUST NOT skip any edge pairs" (prevents incomplete testing)
+
+4. **Systematic Procedures**: Specify completeness and order
+   - "MUST test in order of increasing set size"
+   - "MUST iterate through ALL pairs"
+
+5. **Clear MUST vs MUST NOT**: Make requirements unambiguous
+
+# EXAMPLE OUTPUT
+For "Peter-Clark (PC) Algorithm":
+
+## <STAGE_CONSTRAINTS>
+
+### Stage 1: Graph Initialization
+**Preconditions**:
+- Set of n variables is provided and labeled
+- n ≥ 2 (need at least 2 variables)
+
+**MUST Conditions**:
+- MUST create exactly n*(n-1)/2 edges for n variables
+  Example: For 5 variables, MUST create exactly 10 edges
+- MUST connect every pair of distinct variables
+- MUST label all edges as undirected
+
+**MUST NOT Conditions**:
+- MUST NOT create self-loops
+- MUST NOT create duplicate edges for same pair
+
+**Postconditions**:
+- Graph has exactly n nodes
+- Graph has exactly n*(n-1)/2 edges
+- All edges are undirected
+- Every pair of distinct nodes is connected
+
+**Invariants**:
+- Node set remains constant
+- No self-loops
+- No duplicate edges
+
+### Stage 2: Skeleton Identification
+**Preconditions**:
+- Complete graph from Stage 1 exists
+- Conditional independence data is available
+
+**MUST Conditions**:
+- MUST test EVERY pair of adjacent nodes for conditional independence
+- MUST start with conditioning sets of size 0, then 1, then 2, etc. (systematic order)
+- MUST check actual conditional independence data for each test
+- MUST remove edge ONLY when explicit CI statement found
+- MUST record separating set for EVERY removed edge
+
+**MUST NOT Conditions**:
+- MUST NOT skip any edge pairs in testing
+- MUST NOT remove edges without CI justification from data
+- MUST NOT remove nodes (only edges can be removed)
+- MUST NOT assume CI statements not explicitly given
+
+**Postconditions**:
+- Skeleton has same nodes as initial graph
+- Skeleton has ≤ n*(n-1)/2 edges (some removed)
+- Every removed edge has recorded separating set
+- No edge removed without CI justification
+
+**Invariants**:
+- Node count stays constant at n
+- Graph remains undirected
+- No self-loops
+- No duplicate edges
+
+[Continue for other stages...]
+
+</STAGE_CONSTRAINTS>
+
+## <SYSTEMATIC_PROCEDURES>
+
+- **Edge Testing**: MUST test ALL edges in the graph systematically, not just a subset
+- **Conditioning Set Order**: MUST try conditioning sets in order of increasing size (|S| = 0, then 1, then 2, ...)
+- **Separation Set Recording**: MUST record the separating set for every single edge that is removed
+
+</SYSTEMATIC_PROCEDURES>
+
+## <ALGORITHMIC_INVARIANTS>
+
+- Graph structure: Nodes remain constant throughout all stages (only edges change)
+- Acyclicity: Final CPDAG must be acyclic
+- Consistency: All edge orientations must be consistent with recorded separation sets
+- Completeness: All conditional independence information must be used
+
+</ALGORITHMIC_INVARIANTS>
+
+Focus on constraints that prevent the most common implementation errors.
 """
-
-        procedure_prompt = f"""
-# ALGORITHM REQUEST
-Provide detailed procedural description for the **{algorithm_name}** algorithm.
-
-# CONTEXT
-This will be used to generate implementation plans. Include all canonical steps with precise input/output specifications.
-
-# SPECIFIC ALGORITHM
-{algorithm_name}
-
-Provide the procedural details following the specified structure with clear markers.
-"""
-
-        validation_prompt = f"""
-# ALGORITHM REQUEST
-Provide comprehensive validation criteria for the **{algorithm_name}** algorithm.
-
-# CONTEXT
-This will be used to ensure implementation correctness and quality. Include specific, measurable validation methods.
-
-# SPECIFIC ALGORITHM
-{algorithm_name}
-
-Provide the validation criteria following the specified structure with clear markers.
-"""
-
-        # Execute all perspectives in parallel
-        tasks = [
-            self.foundation_agent.run(foundation_prompt),
-            self.procedure_agent.run(procedure_prompt),
-            self.validation_agent.run(validation_prompt)
-        ]
-
-        results = await asyncio.gather(*tasks)
-        foundation_result, procedure_result, validation_result = results
-
-        print("✅ Multiple perspectives gathered")
-        print(f"   📐 Foundation: {len(foundation_result.output)} chars")
-        print(f"   📋 Procedures: {len(procedure_result.output)} chars")
-        print(f"   🔍 Validation: {len(validation_result.output)} chars")
-
-        # Show brief previews
-        print(f"\n📐 Foundation preview: {foundation_result.output[:100]}...")
-        print(f"📋 Procedures preview: {procedure_result.output[:100]}...")
-        print(f"🔍 Validation preview: {validation_result.output[:100]}...")
-
-        # Synthesize with structured input
-        print("🔄 Synthesizing comprehensive knowledge...")
-
-        synthesis_prompt = f"""
-# SYNTHESIS REQUEST
-Create authoritative description for: **{algorithm_name}**
-
-# EXPERT PERSPECTIVES TO SYNTHESIZE
-
-## MATHEMATICAL FOUNDATIONS EXPERT
-{foundation_result.output}
-
-## PROCEDURAL EXPERT
-{procedure_result.output}
-
-## VALIDATION EXPERT
-{validation_result.output}
-
-# YOUR TASK
-Synthesize these three expert perspectives into a comprehensive, implementation-ready algorithm description following the specified output format.
-
-**CRITICAL**: Preserve content from all marked sections (e.g., <MATHEMATICAL_DEFINITION>, <CANONICAL_STEPS>, <VALIDATION_CRITERIA>) and reference them appropriately in your synthesis.
-"""
-
-        synthesis_result = await self.synthesis_agent.run(synthesis_prompt)
-
-        print("✅ Knowledge synthesis complete")
-        print(f"   📖 Final knowledge: {len(synthesis_result.output)} chars")
-
-        return synthesis_result.output
+        )
 
     async def extract_simple_knowledge(self, algorithm_name: str, dataset_sample: str) -> str:
         """
-        Extract algorithm knowledge using a simple, lightweight approach.
-
-        This is a backup method that uses a single agent with minimal prompting,
-        designed for performance testing and fallback scenarios when the enhanced
-        extraction method may be too resource-intensive.
+        Extract comprehensive algorithm knowledge using two parallel agents.
 
         Args:
-            algorithm_name: Name of the algorithm to extract knowledge for
-            dataset_sample: Dataset sample to ground algorithm descriptions with concrete examples
+            algorithm_name: Name of the algorithm
+            dataset_sample: Sample data to ground descriptions with concrete examples
 
         Returns:
-            Simple canonical algorithm description with stages and key objects
+            Merged knowledge with canonical stages AND operational constraints
         """
-        knowledge_retriever = Agent(
-            "openai:o3-mini",
-            output_type=str,
-            system_prompt=f"""
-You are an algorithm expert. Provide the canonical mathematical stages/steps for the requested algorithm as they appear in academic literature.
+        # Prepare prompts for both agents
+        stages_prompt = f"""
+Extract the canonical stages for: **{algorithm_name}**
 
-DATASET CONTEXT:
-Your algorithm will work with data like this sample:
-"{dataset_sample}"
+# DATASET CONTEXT
+Your algorithm will work with data like:
+"{dataset_sample[:500]}..."
 
-Note: Use variable names from the actual dataset rather than abstract notation in your descriptions and examples.
+Use variable names from the actual dataset (e.g., A, B, C, D, E) in your examples.
 
-Format your response as:
-ALGORITHM: [name]
-DEFINITION: [brief mathematical definition]
-CANONICAL STAGES:
-1. [Stage name]: [mathematical description]
-2. [Stage name]: [mathematical description]
-...
-KEY MATHEMATICAL OBJECTS: [list the main data structures/objects manipulated]
-DATA FORMATS: [specify JSON structure for each mathematical object using concrete examples]
-- object_name: {{"type": "object", "properties": {{...}}, "required": [...]}}
-- another_object: {{"type": "array", "items": {{...}}}}
+Provide the canonical algorithmic stages following the specified format with markers.
+"""
 
-Be precise and focus on the algorithmic structure using concrete variable names from the dataset.
-""",
-        )
+        constraints_prompt = f"""
+Extract operational constraints for: **{algorithm_name}**
 
-        knowledge_prompt = f"Describe the canonical stages of {algorithm_name}"
-        result = await knowledge_retriever.run(knowledge_prompt)
-        return result.output
+# DATASET CONTEXT
+Your algorithm will work with data like:
+"{dataset_sample[:500]}..."
+
+For 5 variables (A, B, C, D, E), this means:
+- Complete graph has 10 edges: 5*(5-1)/2 = 10
+- Use these concrete numbers in your constraints
+
+# FOCUS
+For EACH stage, specify what MUST happen, what MUST NOT happen, and what invariants hold.
+Be extremely specific with concrete numbers and systematic procedures.
+
+Provide detailed constraints following the specified format with markers.
+"""
+
+        # Run both agents in parallel
+        print("🔄 Extracting knowledge using two parallel agents...")
+        print("   📋 Agent 1: Extracting canonical stages...")
+        print("   🔒 Agent 2: Extracting operational constraints...")
+
+        stages_task = self.stages_agent.run(stages_prompt)
+        constraints_task = self.constraints_agent.run(constraints_prompt)
+
+        results = await asyncio.gather(stages_task, constraints_task)
+        stages_result, constraints_result = results
+
+        stages_output = stages_result.output
+        constraints_output = constraints_result.output
+
+        print(f"   ✅ Stages extracted: {len(stages_output)} chars")
+        print(f"   ✅ Constraints extracted: {len(constraints_output)} chars")
+
+        # Merge both outputs
+        merged_knowledge = self._merge_knowledge(stages_output, constraints_output)
+
+        print(f"✅ Knowledge extraction complete: {len(merged_knowledge)} chars")
+
+        return merged_knowledge
+
+    def _merge_knowledge(self, stages_output: str, constraints_output: str) -> str:
+        """
+        Merge canonical stages and constraints into comprehensive knowledge.
+
+        Strategy: Interleave constraints into stage descriptions for better usability.
+        """
+        merged = f"""
+{stages_output}
+
+{constraints_output}
+"""
+        return merged.strip()
