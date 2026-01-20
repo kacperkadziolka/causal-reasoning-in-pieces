@@ -1,6 +1,7 @@
 import json
 import re
 from functools import lru_cache
+from pathlib import Path
 from typing import Any
 
 import yaml
@@ -24,6 +25,10 @@ def load_prompts(file_path: str = "prompts.yaml") -> dict[str, str]:
     Returns:
     - dict: A dictionary where keys are prompt names and values are the corresponding prompts.
     """
+    # Make path relative to this file's directory
+    if not Path(file_path).is_absolute():
+        file_path = Path(__file__).parent / file_path
+
     with open(file_path, 'r') as file:
         return yaml.safe_load(file)
 
