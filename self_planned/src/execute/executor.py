@@ -287,8 +287,21 @@ async def run_stage(stage: Stage, context: Dict[str, Any], verbose: bool = True)
             f"Available read data keys: {list(read_data.keys())}"
         )
 
-    # Add schema information to guide the output
-    prompt_with_schema = f"{rendered_prompt}\n\nOutput JSON Schema:\n{json.dumps(stage.output_schema, indent=2)}"
+    # Add explicit output key requirements and schema to guide the output
+    required_keys = stage.writes
+    example_structure = "{" + ", ".join(f'"{k}": <value>' for k in required_keys) + "}"
+
+    output_instruction = f"""
+CRITICAL OUTPUT REQUIREMENT:
+Your JSON response MUST contain exactly these keys: {required_keys}
+Example structure: {example_structure}
+
+DO NOT use alternative key names. Use EXACTLY: {required_keys}
+
+Output JSON Schema:
+{json.dumps(stage.output_schema, indent=2)}
+"""
+    prompt_with_schema = f"{rendered_prompt}\n\n{output_instruction}"
 
     # logger.debug_print(f"     📝 Rendered prompt (first 500 chars): {prompt_with_schema[:500]}...")
     # if len(prompt_with_schema) > 500:
@@ -410,13 +423,19 @@ async def run_stage(stage: Stage, context: Dict[str, Any], verbose: bool = True)
     return stage_output
 
 
-async def run_plan(plan: Plan, initial_context: Dict[str, Any], verbose: bool = True) -> Dict[str, Any]:
+async def run_plan(
+    plan: Plan,
+    initial_context: Dict[str, Any],
+    verbose: bool = True,
+    validator: "GenericValidatorGenerator | None" = None
+) -> Dict[str, Any]:
     """Execute a complete plan by running all stages sequentially.
 
     Args:
         plan: The execution plan with stages
         initial_context: Initial context data
         verbose: If True, print detailed execution logs; if False, suppress output
+        validator: Optional validator for checking stage outputs against constraints
     """
     import time
 
@@ -425,7 +444,11 @@ async def run_plan(plan: Plan, initial_context: Dict[str, Any], verbose: bool = 
 
     if verbose:
         print(f"\n🎯 Executing {len(plan.stages)} stages:")
+        if validator:
+            print(f"   📋 Constraint validation enabled")
     context = dict(initial_context)
+
+    validation_results = []
 
     # logger.debug_print(f"🔍 DEBUG - Initial context: {initial_context}")
     # logger.debug_print(f"🔍 DEBUG - Plan stages: {[stage.id for stage in plan.stages]}")
@@ -440,6 +463,21 @@ async def run_plan(plan: Plan, initial_context: Dict[str, Any], verbose: bool = 
             for key in stage.writes:
                 context[key] = stage_output[key]
 
+            # Validate stage output if validator is provided
+            if validator and validator.has_constraints_for_stage(stage.id):
+                stage_validation = validator.validate_stage(stage.id, context)
+                validation_results.append(stage_validation)
+
+                if verbose:
+                    if stage_validation.all_passed:
+                        print(f"   ✅ Validation passed for {stage.id}")
+                    else:
+                        print(f"   ⚠️  Validation issues in {stage.id}:")
+                        for result in stage_validation.failed_constraints:
+                            print(f"      ❌ {result.message}")
+                            if result.details:
+                                print(f"         Details: {result.details}")
+
             # logger.debug_print(f"🔍 DEBUG - Context after {stage.id}: {list(context.keys())}")
 
         except Exception as e:
@@ -450,5 +488,17 @@ async def run_plan(plan: Plan, initial_context: Dict[str, Any], verbose: bool = 
     final_result = context.get(plan.final_key, "<<NOT_FOUND>>")
     if verbose:
         print(f"\n🎯 Completed in {total_time:.1f}s → {final_result}")
+
+        # Summary of validation results
+        if validator and validation_results:
+            total_checks = sum(len(r.results) for r in validation_results)
+            failed_checks = sum(len(r.failed_constraints) for r in validation_results)
+            if failed_checks > 0:
+                print(f"   ⚠️  Validation: {failed_checks}/{total_checks} checks failed")
+            else:
+                print(f"   ✅ Validation: All {total_checks} checks passed")
+
+    # Store validation results in context for later analysis
+    context["_validation_results"] = validation_results
 
     return context

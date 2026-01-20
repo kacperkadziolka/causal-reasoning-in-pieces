@@ -12,9 +12,22 @@ def parse_args():
     parser.add_argument(
         "--batch-size", "-b",
         type=int,
-        default=4,
+        default=100,
         help="Number of experiments to run (max: dataset size)"
     )
+    parser.add_argument(
+        "--max-concurrent", "-c",
+        type=int,
+        default=10,
+        help="Maximum number of concurrent experiments [default: 10]"
+    )
+    parser.add_argument(
+        "--plan-cache-size",
+        type=int,
+        default=None,
+        help="Number of samples sharing one plan (default: same as --max-concurrent)"
+    )
+
 
     parser.add_argument(
         "--dataset", "-d",
@@ -33,13 +46,6 @@ def parse_args():
         "--seed", "-s",
         type=int,
         help="Random seed for reproducible sampling"
-    )
-
-    parser.add_argument(
-        "--max-concurrent", "-c",
-        type=int,
-        default=2,
-        help="Maximum number of concurrent experiments [default: 10]"
     )
 
     parser.add_argument(
@@ -94,13 +100,6 @@ def parse_args():
         action="store_false",
         dest="use_plan_caching",
         help="Disable plan caching (regenerate plan for every sample)"
-    )
-
-    parser.add_argument(
-        "--plan-cache-size",
-        type=int,
-        default=None,
-        help="Number of samples sharing one plan (default: same as --max-concurrent)"
     )
 
     return parser.parse_args()

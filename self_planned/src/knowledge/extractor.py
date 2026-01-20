@@ -1,5 +1,7 @@
 from pydantic_ai import Agent
 import asyncio
+import json
+import re
 
 
 class EnhancedKnowledgeExtractor:
@@ -261,26 +263,211 @@ Focus on constraints that prevent the most common implementation errors.
 """
         )
 
-    async def extract_simple_knowledge(self, algorithm_name: str, dataset_sample: str) -> str:
+        # Agent 3: Constraint Formalizer
+        self.formalizer_agent = Agent(
+            "openai:o3-mini",
+            output_type=str,
+            system_prompt="""
+# ROLE
+You are a constraint formalization expert who converts natural language constraints into structured, machine-readable JSON format.
+
+# TASK
+Convert textual stage constraints into structured JSON that can be automatically validated.
+
+# INPUT
+You receive constraints in natural language format with MUST/MUST NOT conditions, preconditions, postconditions, etc.
+
+# OUTPUT FORMAT
+Return a JSON object with this structure:
+
+{
+  "stage_constraints": {
+    "stage_name": {
+      "constraints": [
+        {
+          "id": "unique_id",
+          "type": "count|completeness|mapping|property|range|order|prohibition",
+          "category": "precondition|must|must_not|postcondition|invariant",
+          "description": "Human readable description",
+          "check": {
+            // Type-specific validation parameters
+          }
+        }
+      ]
+    }
+  }
+}
+
+# CONSTRAINT TYPES (algorithm-agnostic):
+
+## 1. COUNT Constraints
+Check the number of items in a collection.
+
+{
+  "type": "count",
+  "category": "postcondition",
+  "description": "Output collection has expected size",
+  "check": {
+    "object_path": "output.items",
+    "operator": "==",
+    "value_expression": "n * factor",
+    "variables": {"n": "len(input.data)", "factor": 2}
+  }
+}
+
+## 2. COMPLETENESS Constraints
+Verify all items in a collection were processed.
+
+{
+  "type": "completeness",
+  "category": "must",
+  "description": "Process EVERY input item",
+  "check": {
+    "action": "process",
+    "collection_path": "input.items",
+    "requirement": "all"
+  }
+}
+
+## 3. MAPPING Constraints
+Verify relationship between two collections.
+
+{
+  "type": "mapping",
+  "category": "postcondition",
+  "description": "Every input has corresponding output",
+  "check": {
+    "source_path": "input.items",
+    "target_path": "output.results",
+    "relation": "one_to_one",
+    "coverage": "complete"
+  }
+}
+
+## 4. PROPERTY Constraints
+Check a specific property holds.
+
+{
+  "type": "property",
+  "category": "invariant",
+  "description": "Data structure maintains property X",
+  "check": {
+    "object_path": "structure",
+    "property": "is_sorted",
+    "expected": true
+  }
+}
+
+## 5. RANGE Constraints
+Check value is within range.
+
+{
+  "type": "range",
+  "category": "postcondition",
+  "description": "Result size within bounds",
+  "check": {
+    "object_path": "result.items",
+    "min": 0,
+    "max_expression": "n * (n - 1) / 2",
+    "variables": {"n": "len(input.data)"}
+  }
+}
+
+## 6. ORDER Constraints
+Check processing order.
+
+{
+  "type": "order",
+  "category": "must",
+  "description": "Process items in specific order",
+  "check": {
+    "sequence": "processing_steps",
+    "order_by": "size",
+    "direction": "ascending"
+  }
+}
+
+## 7. PROHIBITION Constraints
+Verify forbidden action didn't occur.
+
+{
+  "type": "prohibition",
+  "category": "must_not",
+  "description": "No items skipped",
+  "check": {
+    "forbidden_action": "skip",
+    "applies_to": "input.items",
+    "detection": "coverage_check"
+  }
+}
+
+# CONVERSION RULES
+
+1. **Extract key information**: Parse the constraint text to identify type, object, operator, value
+2. **Identify type**: Map to one of the 7 constraint types
+3. **Build check object**: Create type-specific validation parameters
+4. **Use expressions**: When values depend on other data, use expressions
+5. **Keep generic**: Use actual object names from the algorithm, not hardcoded names
+6. **Infer paths**: Extract object names from the constraint description (e.g., "skeleton.edges" if constraint mentions skeleton)
+
+# EXAMPLES (showing conversion process)
+
+Input constraint:
+"MUST create complete structure with n*(n-1)/2 elements for n items"
+
+Output:
+{
+  "type": "count",
+  "category": "must",
+  "description": "Create complete structure with n*(n-1)/2 elements",
+  "check": {
+    "object_path": "structure.elements",
+    "operator": "==",
+    "value_expression": "n * (n - 1) / 2",
+    "variables": {"n": "len(input.items)"}
+  }
+}
+
+Input constraint:
+"MUST process ALL input items systematically"
+
+Output:
+{
+  "type": "completeness",
+  "category": "must",
+  "description": "Process ALL input items systematically",
+  "check": {
+    "action": "process",
+    "collection_path": "input.items",
+    "requirement": "all"
+  }
+}
+
+# CRITICAL
+- Focus on extracting CHECKABLE constraints (not just descriptions)
+- Use object paths that match the actual data structure
+- Keep it generic - works for any algorithm
+- Return valid JSON only
+"""
+        )
+
+    async def extract_simple_knowledge(self, algorithm_name: str, dataset_sample: str) -> tuple[str, dict]:
         """
-        Extract comprehensive algorithm knowledge using two parallel agents.
+        Extract comprehensive algorithm knowledge using three agents.
 
         Args:
             algorithm_name: Name of the algorithm
             dataset_sample: Sample data to ground descriptions with concrete examples
 
         Returns:
-            Merged knowledge with canonical stages AND operational constraints
+            Tuple of (merged_textual_knowledge, structured_constraints_dict)
         """
-        # Prepare prompts for both agents
+        # Prepare prompts for both agents (sample-agnostic for caching)
         stages_prompt = f"""
 Extract the canonical stages for: **{algorithm_name}**
 
-# DATASET CONTEXT
-Your algorithm will work with data like:
-"{dataset_sample[:500]}..."
-
-Use variable names from the actual dataset (e.g., A, B, C, D, E) in your examples.
+Use generic variable names (e.g., A, B, C, ...) in your examples.
+The algorithm should work for ANY number of variables (3, 4, 5, or more).
 
 Provide the canonical algorithmic stages following the specified format with markers.
 """
@@ -288,23 +475,20 @@ Provide the canonical algorithmic stages following the specified format with mar
         constraints_prompt = f"""
 Extract operational constraints for: **{algorithm_name}**
 
-# DATASET CONTEXT
-Your algorithm will work with data like:
-"{dataset_sample[:500]}..."
-
-For 5 variables (A, B, C, D, E), this means:
-- Complete graph has 10 edges: 5*(5-1)/2 = 10
-- Use these concrete numbers in your constraints
+# IMPORTANT: Keep constraints GENERIC
+- Use 'n' for number of variables (not a specific number)
+- Complete graph has n*(n-1)/2 edges
+- Examples: For n=3: 3 edges, For n=4: 6 edges, For n=5: 10 edges
 
 # FOCUS
 For EACH stage, specify what MUST happen, what MUST NOT happen, and what invariants hold.
-Be extremely specific with concrete numbers and systematic procedures.
+Be specific with formulas using 'n' for variable count.
 
 Provide detailed constraints following the specified format with markers.
 """
 
         # Run both agents in parallel
-        print("🔄 Extracting knowledge using two parallel agents...")
+        print("🔄 Extracting knowledge using three-agent pipeline...")
         print("   📋 Agent 1: Extracting canonical stages...")
         print("   🔒 Agent 2: Extracting operational constraints...")
 
@@ -320,12 +504,75 @@ Provide detailed constraints following the specified format with markers.
         print(f"   ✅ Stages extracted: {len(stages_output)} chars")
         print(f"   ✅ Constraints extracted: {len(constraints_output)} chars")
 
-        # Merge both outputs
+        # Run formalizer agent to convert constraints to structured JSON
+        print("   ⚙️  Agent 3: Formalizing constraints to JSON...")
+
+        formalizer_prompt = f"""
+Convert the following natural language constraints into structured JSON format.
+
+# ALGORITHM
+{algorithm_name}
+
+# CONSTRAINTS TO FORMALIZE
+{constraints_output}
+
+Return ONLY valid JSON matching the specified structure. Focus on extracting checkable constraints.
+"""
+
+        formalizer_result = await self.formalizer_agent.run(formalizer_prompt)
+        formalizer_output = formalizer_result.output
+
+        # Parse the JSON response with robust extraction
+        structured_constraints = self._extract_json_from_output(formalizer_output)
+
+        # Merge textual outputs for planning
         merged_knowledge = self._merge_knowledge(stages_output, constraints_output)
 
-        print(f"✅ Knowledge extraction complete: {len(merged_knowledge)} chars")
+        print(f"✅ Knowledge extraction complete: {len(merged_knowledge)} chars + structured constraints")
 
-        return merged_knowledge
+        return merged_knowledge, structured_constraints
+
+    def _extract_json_from_output(self, output: str) -> dict:
+        """
+        Extract and parse JSON from LLM output, handling markdown code blocks.
+
+        Args:
+            output: Raw LLM output that may contain JSON
+
+        Returns:
+            Parsed dict with stage_constraints, or empty fallback
+        """
+        # Try direct parsing first
+        try:
+            result = json.loads(output)
+            if isinstance(result, dict):
+                print(f"   ✅ Constraints formalized: {len(result.get('stage_constraints', {}))} stages")
+                return result
+        except json.JSONDecodeError:
+            pass
+
+        # Try extracting from markdown code blocks
+        json_patterns = [
+            r'```json\s*([\s\S]*?)\s*```',  # ```json ... ```
+            r'```\s*([\s\S]*?)\s*```',       # ``` ... ```
+            r'\{[\s\S]*\}',                   # Raw JSON object
+        ]
+
+        for pattern in json_patterns:
+            matches = re.findall(pattern, output)
+            for match in matches:
+                try:
+                    result = json.loads(match if isinstance(match, str) else match[0])
+                    if isinstance(result, dict):
+                        print(f"   ✅ Constraints formalized: {len(result.get('stage_constraints', {}))} stages")
+                        return result
+                except (json.JSONDecodeError, TypeError):
+                    continue
+
+        # Fallback to empty constraints
+        print(f"   ⚠️  Warning: Failed to parse structured constraints from output")
+        print(f"      Output preview: {output[:200]}...")
+        return {"stage_constraints": {}}
 
     def _merge_knowledge(self, stages_output: str, constraints_output: str) -> str:
         """

@@ -24,6 +24,7 @@ import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).parent))
 from models import Plan, Stage
+from plan.plan_validator import PlanValidator
 from utils.logging_config import get_logger
 
 
@@ -616,6 +617,30 @@ Generate the most detailed, robust prompt and schema possible for this ONE stage
             logger.success("Plan validated and aligned")
             logger.info(f"   Final output key: '{final_key}'")
 
+        # Layer 2: Validate and auto-correct reads
+        # This prevents placeholder resolution failures during execution
+        reads_validator = PlanValidator()
+        initial_context_keys = {'input'}  # Keys available at execution start
+
+        plan, validation_result = reads_validator.validate_and_fix_reads(
+            plan, initial_context_keys
+        )
+
+        metadata["reads_validation"] = {
+            "valid": validation_result.valid,
+            "corrections_made": validation_result.corrections_made,
+            "warnings": validation_result.warnings,
+            "errors": validation_result.errors
+        }
+
+        if verbose:
+            if validation_result.corrections_made > 0:
+                logger.warning(f"   Reads validation: {validation_result.corrections_made} auto-corrections made")
+                for warning in validation_result.warnings:
+                    logger.info(f"      - {warning}")
+            elif validation_result.valid:
+                logger.info(f"   Reads validation: All reads valid")
+
         if verbose:
             logger.section("✅ MULTI-AGENT PLANNING COMPLETE")
 
@@ -715,6 +740,18 @@ Return a complete, validated Plan.
 
             result = await self.validator_agent.run(prompt)
             plan = result.output
+
+            # First: Auto-correct reads before validation
+            # This fixes dot-paths like 'input.variables' → 'input'
+            reads_validator = PlanValidator()
+            initial_context_keys = {'input'}
+            plan, reads_result = reads_validator.validate_and_fix_reads(plan, initial_context_keys)
+
+            if reads_result.corrections_made > 0:
+                logger = get_logger()
+                logger.info(f"   Auto-corrected {reads_result.corrections_made} reads")
+                for warning in reads_result.warnings:
+                    logger.info(f"   - {warning}")
 
             # Additional validation (our Python-side checks)
             validation_errors = self._validate_plan_structure(plan)
