@@ -8,12 +8,11 @@ import pandas as pd
 import torch
 from dotenv import load_dotenv
 from huggingface_hub import login
-from openai import OpenAI
 from transformers import pipeline, AutoTokenizer
 
 from deepseek_async_backend import run_experiments_deepseek_async
 from huggingface_backend import run_experiments_hf
-from openai_backend import run_experiments_openai
+from openai_backend import run_experiments_openai_async
 
 
 def parse_args() -> argparse.Namespace:
@@ -44,6 +43,13 @@ def parse_args() -> argparse.Namespace:
         help="Path to the split csv file",
         default="../data/test_dataset.csv"
     )
+    parser.add_argument(
+        "--prompt_type",
+        type=str,
+        default="single_stage_prompt",
+        choices=["single_stage_prompt", "minimal_prompt"],
+        help="Which prompt to use: single_stage_prompt (detailed) or minimal_prompt (simple)"
+    )
     return parser.parse_args()
 
 
@@ -71,8 +77,15 @@ def main() -> None:
         if not api_key:
             raise ValueError("OPENAI_API_KEY not found in environment variables.")
 
-        client = OpenAI(api_key=api_key)
-        run_experiments_openai(client, df, args.num_experiments, log_file, args.backend)
+        asyncio.run(
+            run_experiments_openai_async(
+                df=df,
+                num_experiments=args.num_experiments,
+                log_file=log_file,
+                api_key=api_key,
+                prompt_type=args.prompt_type
+            )
+        )
 
     elif args.backend == "deepseek":
         api_key = os.getenv("DEEPSEEK_API_KEY")
@@ -84,7 +97,8 @@ def main() -> None:
                 df=df,
                 log_file=log_file,
                 api_key=api_key,
-                num_experiments=args.num_experiments
+                num_experiments=args.num_experiments,
+                prompt_type=args.prompt_type
             )
         )
 
@@ -107,7 +121,7 @@ def main() -> None:
         except Exception as e:
             print(f"Failed to load Hugging Face model: {e}")
             return
-        run_experiments_hf(hf_pipeline, df, args.num_experiments, log_file, tokenizer)
+        run_experiments_hf(hf_pipeline, df, args.num_experiments, log_file, tokenizer, prompt_type=args.prompt_type)
 
 
 if __name__ == "__main__":

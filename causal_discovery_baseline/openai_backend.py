@@ -1,8 +1,10 @@
 import logging
-from typing import Tuple, Optional
+from typing import Optional
+
+import asyncio
+from tqdm.asyncio import tqdm_asyncio
 from pandas import DataFrame
-from tqdm import tqdm
-from openai import OpenAI
+from openai import AsyncOpenAI
 
 from answer_extractor import (
     extract_hypothesis_answer,
@@ -12,8 +14,14 @@ from answer_extractor import (
 )
 from utils import prepare_experiment_from_row, append_log
 
+_CONCURRENCY: int = 10
 
-def run_openai_experiment(client: OpenAI, experiment: dict, backend: str, max_attempts: int = 3) -> Tuple[Optional[dict], dict]:
+
+async def _run_one(
+    client: AsyncOpenAI,
+    experiment: dict,
+    max_attempts: int = 3
+) -> tuple[Optional[dict], dict]:
     for attempt in range(1, max_attempts + 1):
         experiment["attempt_count"] = attempt
 
@@ -21,30 +29,18 @@ def run_openai_experiment(client: OpenAI, experiment: dict, backend: str, max_at
             logging.info(f"[Sample {experiment['sample_id']}] Prompt:\n{experiment['prompt']}")
             logging.info(f"Ground truth label: {experiment['label']}")
 
-            if backend == "openai":
-                completion = client.chat.completions.create(
-                    model="o3-mini",
-                    messages=[{"role": "user", "content": experiment["prompt"]}]
-                )
-            elif backend == "deepseek":
-                completion = client.chat.completions.create(
-                    model="deepseek-reasoner",
-                    messages=[
-                        {"role": "user", "content": experiment["prompt"]},
-                    ],
-                    stream=False,
-                    temperature=0.1,
-                )
-            else:
-                raise ValueError(f"Unsupported backend: {backend}")
+            resp = await client.chat.completions.create(
+                model="o3-mini",
+                messages=[{"role": "user", "content": experiment["prompt"]}],
+            )
 
-            # Extract and log token usage details
-            usage = completion.usage
+            # Extract token usage
+            usage = resp.usage
             experiment["token_usage"]["input_tokens"] += usage.prompt_tokens
             experiment["token_usage"]["output_tokens"] += usage.completion_tokens
             experiment["token_usage"]["total_tokens"] += usage.total_tokens
 
-            model_response = completion.choices[0].message.content
+            model_response = resp.choices[0].message.content
             experiment["model_answer"] = model_response
             logging.info(f"Model response:\n{model_response}")
 
@@ -67,21 +63,35 @@ def run_openai_experiment(client: OpenAI, experiment: dict, backend: str, max_at
     return None, experiment
 
 
-def run_experiments_openai(client: OpenAI, df: DataFrame, num_experiments: int, log_file: str, backend: str = "openai") -> None:
-    results = []
-    num_samples = min(num_experiments, len(df))
-    sampled_rows = df.sample(n=num_samples, replace=False)
+async def run_experiments_openai_async(
+    df: DataFrame,
+    num_experiments: int,
+    log_file: str,
+    api_key: str,
+    prompt_type: str = "single_stage_prompt",
+) -> None:
+    # Prepare all experiments up front
+    samples = df.sample(n=min(num_experiments, len(df)), replace=False)
+    experiments = [prepare_experiment_from_row(row, prompt_type=prompt_type) for _, row in samples.iterrows()]
 
-    for _, row in tqdm(sampled_rows.iterrows(), total=num_samples, desc="Running OpenAI Experiments"):
-        experiment = prepare_experiment_from_row(row)
-        result, log_entry = run_openai_experiment(client, experiment, backend)
-        append_log(log_file, log_entry)
+    client = AsyncOpenAI(api_key=api_key)
 
-        if result:
-            results.append(result)
+    sem = asyncio.Semaphore(_CONCURRENCY)
 
-    if results:
-        aggregated_metrics = aggregate_metrics_single_prompt(results)
-        display_metrics(aggregated_metrics)
+    async def sem_task(exp):
+        async with sem:
+            result, log_entry = await _run_one(client, exp)
+            append_log(log_file, log_entry)
+            return result
 
-    logging.info(f"Total failed experiments: {num_samples - len(results)}")
+    tasks = [asyncio.create_task(sem_task(exp)) for exp in experiments]
+
+    results = await tqdm_asyncio.gather(*tasks, desc="Running OpenAI Experiments")
+
+    # Filter out failures (None)
+    successes = [r for r in results if r is not None]
+    if successes:
+        metrics = aggregate_metrics_single_prompt(successes)
+        display_metrics(metrics)
+
+    logging.info(f"OpenAI async done. Total: {len(experiments)}, Succeeded: {len(successes)}")

@@ -15,14 +15,18 @@ PROMPTS = load_yaml("prompts.yaml")
 logging.info(f"Loaded prompts from prompts.yaml: {PROMPTS}")
 
 
-def prepare_experiment_from_row(row: Series) -> dict:
+def prepare_experiment_from_row(row: Series, prompt_type: str = "single_stage_prompt") -> dict:
     """
     Create an experiment dictionary from a DataFrame row.
+
+    Parameters:
+    - row: DataFrame row containing experiment data
+    - prompt_type: Which prompt to use ("single_stage_prompt" or "minimal_prompt")
     """
     sample_id = row.name
     premise = extract_premise(row["input"])
     hypothesis = extract_hypothesis(row["input"])
-    prompt = PROMPTS["single_stage_prompt"].format(premise=premise, hypothesis=hypothesis)
+    prompt = PROMPTS[prompt_type].format(premise=premise, hypothesis=hypothesis)
 
     return {
         "sample_id": sample_id,

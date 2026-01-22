@@ -52,9 +52,9 @@ def process_hf_response(output_obj: dict, experiment: dict, tokenizer: PreTraine
 
 def run_experiments_hf(pipeline: Pipeline, df: DataFrame, num_experiments: int, log_file: str,
                        tokenizer: PreTrainedTokenizer, batch_size: int = BATCH_SIZE,
-                       max_new_tokens: int = MAX_NEW_TOKENS) -> None:
+                       max_new_tokens: int = MAX_NEW_TOKENS, prompt_type: str = "single_stage_prompt") -> None:
     experiment_data = [
-        prepare_experiment_from_row(row)
+        prepare_experiment_from_row(row, prompt_type=prompt_type)
         for _, row in df.sample(n=min(num_experiments, len(df)), replace=False).iterrows()
     ]
     results = []

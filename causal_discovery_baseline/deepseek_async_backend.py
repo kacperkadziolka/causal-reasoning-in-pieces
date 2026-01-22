@@ -65,10 +65,11 @@ async def run_experiments_deepseek_async(
     num_experiments: int,
     log_file: str,
     api_key: str,
+    prompt_type: str = "single_stage_prompt",
 ) -> None:
     # prepare all experiments up front
     samples = df.sample(n=min(num_experiments, len(df)), replace=False)
-    experiments = [prepare_experiment_from_row(row) for _, row in samples.iterrows()]
+    experiments = [prepare_experiment_from_row(row, prompt_type=prompt_type) for _, row in samples.iterrows()]
 
     client = AsyncOpenAI(api_key=api_key, base_url="https://api.deepseek.com")
 
