@@ -3,13 +3,15 @@ import json
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Tuple, Dict
-from dataclasses import dataclass, asdict
+from typing import List, Optional, Tuple, Dict, Any
+from dataclasses import dataclass, field, asdict
 import pandas as pd
 import numpy as np
 from dotenv import load_dotenv
 
-from main import run_simple_workflow, TASK_ALGORITHM, TASK_DESCRIPTION
+from main import run_simple_workflow
+from tasks import get_task
+from tasks.base import BaseTask
 from plan.models import Plan
 from knowledge.extractor import EnhancedKnowledgeExtractor
 from plan.multi_agent_planner import MultiAgentPlanner
@@ -23,7 +25,8 @@ class ExperimentConfig:
     """Configuration for batch experiments."""
 
     batch_size: int
-    dataset_path: str = "../data/test_dataset.csv"
+    task_name: str = "causal_discovery"
+    dataset_path: Optional[str] = None
     output_dir: str = "../experiments"
     experiment_name: Optional[str] = None
     save_individual_results: bool = True
@@ -43,12 +46,13 @@ class ExperimentResult:
 
     sample_idx: int
     sample_input: str
-    expected: bool
-    predicted: bool
     is_correct: bool
     execution_time: float
     num_stages: int
+    predicted_summary: str = ""
+    expected_summary: str = ""
     error: Optional[str] = None
+    extra: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -59,10 +63,7 @@ class BatchResults:
     total_experiments: int
     successful_experiments: int
     failed_experiments: int
-    accuracy: float
-    precision: float
-    recall: float
-    f1_score: float
+    task_metrics: Dict[str, Any]
     avg_execution_time: float
     total_execution_time: float
     start_time: str
@@ -75,23 +76,19 @@ class BatchExperimentRunner:
 
     def __init__(self, config: ExperimentConfig):
         self.config = config
+        self.task: BaseTask = get_task(config.task_name)
         self.dataset: Optional[pd.DataFrame] = None
         self.results: List[ExperimentResult] = []
         self.start_time: Optional[float] = None
 
     def load_dataset(self) -> None:
         """Load and validate the dataset."""
+        dataset_path = self.config.dataset_path or self.task.default_dataset_path
         try:
-            self.dataset = pd.read_csv(self.config.dataset_path)
+            self.dataset = self.task.load_dataset(dataset_path)
             print(f"📊 Dataset loaded: {len(self.dataset)} samples")
-
-            required_cols = ['input', 'label']
-            missing_cols = [col for col in required_cols if col not in self.dataset.columns]
-            if missing_cols:
-                raise ValueError(f"Missing required columns: {missing_cols}")
-
         except Exception as e:
-            raise ValueError(f"Failed to load dataset from {self.config.dataset_path}: {e}")
+            raise ValueError(f"Failed to load dataset from {dataset_path}: {e}")
 
     def validate_batch_size(self) -> int:
         """Validate and adjust batch size based on dataset size."""
@@ -143,6 +140,7 @@ class BatchExperimentRunner:
 
             result = await run_simple_workflow(
                 sample,
+                task=self.task,
                 use_sequential_generation=self.config.use_sequential_generation,
                 use_multi_agent_planner=self.config.use_multi_agent_planner,
                 cached_plan=cached_plan,
@@ -155,9 +153,7 @@ class BatchExperimentRunner:
             if result is None:
                 return ExperimentResult(
                     sample_idx=sample_idx,
-                    sample_input=sample['input'],
-                    expected=bool(sample['label']),
-                    predicted=False,
+                    sample_input=sample["input"],
                     is_correct=False,
                     execution_time=execution_time,
                     num_stages=0,
@@ -166,13 +162,17 @@ class BatchExperimentRunner:
 
             return ExperimentResult(
                 sample_idx=sample_idx,
-                sample_input=sample['input'],
-                expected=result['expected'],
-                predicted=result['predicted'],
-                is_correct=result['is_correct'],
+                sample_input=sample["input"],
+                is_correct=result["is_correct"],
                 execution_time=execution_time,
-                num_stages=result.get('num_stages', 0),
-                error=None
+                num_stages=result.get("num_stages", 0),
+                predicted_summary=result.get("predicted_summary", ""),
+                expected_summary=result.get("expected_summary", ""),
+                error=None,
+                extra={k: v for k, v in result.items()
+                       if k not in ("sample_idx", "knowledge_length", "num_stages",
+                                    "is_correct", "final_context", "predicted_summary",
+                                    "expected_summary")},
             )
 
         except Exception as e:
@@ -180,8 +180,6 @@ class BatchExperimentRunner:
             return ExperimentResult(
                 sample_idx=sample_idx,
                 sample_input="Error loading sample",
-                expected=False,
-                predicted=False,
                 is_correct=False,
                 execution_time=execution_time,
                 num_stages=0,
@@ -192,16 +190,15 @@ class BatchExperimentRunner:
         """Print progress information in condensed format."""
         status = "✅" if result.error is None else "❌"
         correct_symbol = "✓" if result.is_correct else "✗"
-        predicted_str = "T" if result.predicted else "F"
-        expected_str = "T" if result.expected else "F"
 
         print(f"[{current:2d}/{total}] Sample {result.sample_idx:4d} | "
-              f"pred={predicted_str} exp={expected_str} | {correct_symbol} | "
+              f"pred={result.predicted_summary[:20]:20s} | {correct_symbol} | "
               f"{result.execution_time:5.1f}s {status}", flush=True)
 
     async def run_batch(self) -> BatchResults:
         """Run the complete batch experiment with plan caching."""
         print("🚀 Starting batch experiments...")
+        print(f"📋 Task: {self.config.task_name} ({self.task.algorithm_name})")
 
         self.load_dataset()
         batch_size = self.validate_batch_size()
@@ -235,14 +232,14 @@ class BatchExperimentRunner:
 
             extractor = EnhancedKnowledgeExtractor()
             knowledge, structured_constraints = await extractor.extract_simple_knowledge(
-                TASK_ALGORITHM,
+                self.task.algorithm_name,
                 first_sample["input"]
             )
 
             if self.config.use_multi_agent_planner:
                 planner = MultiAgentPlanner()
                 plan, _ = await planner.generate_plan(
-                    task_description=TASK_DESCRIPTION,
+                    task_description=self.task.task_description,
                     algorithm_knowledge=knowledge,
                     use_sequential=self.config.use_sequential_generation,
                     verbose=False
@@ -250,7 +247,7 @@ class BatchExperimentRunner:
             else:
                 planner = IterativePlanner()
                 plan = await planner.generate_two_stage_plan(
-                    task_description=TASK_DESCRIPTION,
+                    task_description=self.task.task_description,
                     algorithm_knowledge=knowledge,
                     enhance_prompts=True
                 )
@@ -284,8 +281,6 @@ class BatchExperimentRunner:
                     error_result = ExperimentResult(
                         sample_idx=sample_idx,
                         sample_input="Plan generation failed",
-                        expected=False,
-                        predicted=False,
                         is_correct=False,
                         execution_time=0.0,
                         num_stages=0,
@@ -324,29 +319,26 @@ class BatchExperimentRunner:
         total_time = end_time - self.start_time
 
         successful_results = [r for r in self.results if r.error is None]
-        accuracy = sum(r.is_correct for r in successful_results) / len(successful_results) if successful_results else 0.0
-        avg_execution_time = float(np.mean([r.execution_time for r in self.results]))
+        avg_execution_time = float(np.mean([r.execution_time for r in self.results])) if self.results else 0.0
 
-        if successful_results:
-            true_positives = sum(1 for r in successful_results if r.expected and r.predicted)
-            false_positives = sum(1 for r in successful_results if not r.expected and r.predicted)
-            false_negatives = sum(1 for r in successful_results if r.expected and not r.predicted)
+        # Build evaluation dicts for task-specific aggregation
+        eval_dicts = []
+        for r in self.results:
+            d = {
+                "is_correct": r.is_correct,
+                "error": r.error,
+                **r.extra,
+            }
+            eval_dicts.append(d)
 
-            precision = true_positives / (true_positives + false_positives) if (true_positives + false_positives) > 0 else 0.0
-            recall = true_positives / (true_positives + false_negatives) if (true_positives + false_negatives) > 0 else 0.0
-            f1_score = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0.0
-        else:
-            precision = recall = f1_score = 0.0
+        task_metrics = self.task.aggregate_metrics(eval_dicts)
 
         return BatchResults(
             config=self.config,
             total_experiments=len(self.results),
             successful_experiments=len(successful_results),
             failed_experiments=len(self.results) - len(successful_results),
-            accuracy=accuracy,
-            precision=precision,
-            recall=recall,
-            f1_score=f1_score,
+            task_metrics=task_metrics,
             avg_execution_time=avg_execution_time,
             total_execution_time=total_time,
             start_time=start_datetime.isoformat(),
@@ -364,18 +356,34 @@ class BatchExperimentRunner:
 
         results_file = None
         if self.config.save_individual_results:
-            results_data = [asdict(result) for result in batch_results.individual_results]
+            results_data = []
+            for result in batch_results.individual_results:
+                row = asdict(result)
+                # Flatten extra dict into the row
+                extra = row.pop("extra", {})
+                row.update(extra)
+                results_data.append(row)
             results_df = pd.DataFrame(results_data)
             results_file = output_dir / f"{exp_name}_results.csv"
             results_df.to_csv(results_file, index=False)
 
         summary_file = None
         if self.config.save_summary:
-            summary_data = asdict(batch_results)
-            summary_data['individual_results'] = f"See {exp_name}_results.csv"
+            summary_data = {
+                "config": asdict(self.config),
+                "total_experiments": batch_results.total_experiments,
+                "successful_experiments": batch_results.successful_experiments,
+                "failed_experiments": batch_results.failed_experiments,
+                "task_metrics": batch_results.task_metrics,
+                "avg_execution_time": batch_results.avg_execution_time,
+                "total_execution_time": batch_results.total_execution_time,
+                "start_time": batch_results.start_time,
+                "end_time": batch_results.end_time,
+                "individual_results": f"See {exp_name}_results.csv",
+            }
             summary_file = output_dir / f"{exp_name}_summary.json"
             with open(summary_file, 'w') as f:
-                json.dump(summary_data, f, indent=2)
+                json.dump(summary_data, f, indent=2, default=str)
 
         return str(results_file), str(summary_file)
 
@@ -384,14 +392,16 @@ class BatchExperimentRunner:
         print("\n" + "=" * 80)
         print("📊 BATCH EXPERIMENT SUMMARY")
         print("=" * 80)
+        print(f"Task:                  {self.config.task_name} ({self.task.algorithm_name})")
         print(f"Total Experiments:     {batch_results.total_experiments}")
         print(f"Successful:            {batch_results.successful_experiments}")
         print(f"Failed:                {batch_results.failed_experiments}")
-        print(f"Success Rate:          {(batch_results.successful_experiments/batch_results.total_experiments)*100:.1f}%")
-        print(f"Accuracy:              {batch_results.accuracy*100:.1f}%")
-        print(f"Precision:             {batch_results.precision*100:.1f}%")
-        print(f"Recall:                {batch_results.recall*100:.1f}%")
-        print(f"F1 Score:              {batch_results.f1_score*100:.1f}%")
+        success_rate = (batch_results.successful_experiments / batch_results.total_experiments * 100) if batch_results.total_experiments > 0 else 0.0
+        print(f"Success Rate:          {success_rate:.1f}%")
+
+        # Task-specific metrics
+        self.task.print_metrics(batch_results.task_metrics)
+
         print(f"Avg Execution Time:    {batch_results.avg_execution_time:.2f}s")
         print(f"Total Execution Time:  {batch_results.total_execution_time:.1f}s")
 

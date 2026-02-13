@@ -1,0 +1,32 @@
+direct_prompt: |
+  {question}
+
+cot_prompt: |
+  Solve the following graph problem step by step.
+
+  Think carefully about all possible paths between the source and target nodes,
+  compute their total weights, and identify the path with the minimum total weight.
+
+  {question}
+
+  After your analysis, provide your final answer in this exact format:
+  The shortest path from node X to node Y is A,B,C with a total weight of W
+
+bag_prompt: |
+  {question_with_bag}
+
+algorithm_prompt: |
+  You are an expert in graph algorithms. Use Dijkstra's algorithm to find
+  the shortest path in the following weighted undirected graph problem.
+
+  Steps to follow:
+  1. Parse the graph: identify all nodes and weighted edges.
+  2. Initialize: set the distance to the source node as 0, all others as infinity.
+  3. Relaxation: repeatedly select the unvisited node with the smallest tentative distance,
+     and update the distances of its neighbors.
+  4. Trace back: once the target is reached, reconstruct the shortest path.
+
+  {question}
+
+  After applying Dijkstra's algorithm, provide your final answer in this exact format:
+  The shortest path from node X to node Y is A,B,C with a total weight of W
