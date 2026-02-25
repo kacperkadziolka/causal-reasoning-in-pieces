@@ -110,6 +110,8 @@ python causal_discovery/main.py \
 
 ## Project Structure
 
+- `shortest_path/` - Multi-stage shortest path pipeline (graph parsing, Dijkstra execution, verification)
+- `shortest_path_baseline/` - Single-prompt baseline for NLGraph shortest path task
 - `causal_discovery/` - Main package
   - `llm_client.py `- LLM client implementations
   - `main.py` - Entry point for the application

@@ -10,6 +10,14 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Run batch experiments")
 
     parser.add_argument(
+        "--task", "-t",
+        type=str,
+        default="causal_discovery",
+        choices=["causal_discovery", "shortest_path"],
+        help="Which task to run (default: causal_discovery)"
+    )
+
+    parser.add_argument(
         "--batch-size", "-b",
         type=int,
         default=100,
@@ -32,8 +40,8 @@ def parse_args():
     parser.add_argument(
         "--dataset", "-d",
         type=str,
-        default="../data/test_dataset.csv",
-        help="Path to the dataset CSV file"
+        default=None,
+        help="Path to the dataset file (default: task-specific default)"
     )
 
     parser.add_argument(
@@ -71,7 +79,7 @@ def parse_args():
         "--sample-indices", "-si",
         type=str,
         help="Path to JSON file containing specific sample indices to run",
-        default="indices/sample_indices_batch_exp_20251125_222142_results.json"
+        default=None,
     )
 
     parser.add_argument(
@@ -108,13 +116,6 @@ def parse_args():
 async def main():
     args = parse_args()
 
-    # Validate dataset path
-    dataset_path = Path(args.dataset)
-    if not dataset_path.exists():
-        print(f"❌ Error: Dataset file not found: {args.dataset}")
-        print("📁 Make sure the dataset exists or provide correct path with --dataset")
-        return
-
     # Load sample indices if provided
     sample_indices = None
     if args.sample_indices:
@@ -141,6 +142,7 @@ async def main():
     # Create configuration
     config = ExperimentConfig(
         batch_size=args.batch_size,
+        task_name=args.task,
         dataset_path=args.dataset,
         output_dir=args.output_dir,
         experiment_name=args.name,
@@ -156,9 +158,10 @@ async def main():
     )
 
     print("🔧 Experiment Configuration:")
+    print(f"   Task: {config.task_name}")
     print(f"   Batch size: {config.batch_size}")
     print(f"   Max concurrent: {config.max_concurrent}")
-    print(f"   Dataset: {config.dataset_path}")
+    print(f"   Dataset: {config.dataset_path or '(task default)'}")
     print(f"   Output dir: {config.output_dir}")
     print(f"   Random seed: {config.random_seed}")
     print(f"   Save individual: {config.save_individual_results}")

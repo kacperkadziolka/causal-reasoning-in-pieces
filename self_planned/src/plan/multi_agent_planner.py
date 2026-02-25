@@ -300,15 +300,13 @@ For writes: ["graph", "sepsets"]
 - Matches mathematical object structure from algorithm knowledge
 - Executable by LLM (clear, unambiguous)
 
-# CRITICAL: FINAL STAGE SCHEMA VALIDATION
-When generating schemas for the FINAL stage of the plan:
-1. Identify if this is the final stage (last stage in sequence)
-2. For write keys representing boolean decisions:
-   - USE simple boolean type: {"type": "boolean"}
-   - DO NOT use nested objects with properties
-
-Example CORRECT: {"decision": {"type": "boolean"}}
-Example INCORRECT: {"decision": {"type": "object", "properties": {"verified": {...}}}}
+# FINAL STAGE SCHEMA
+For the FINAL stage, use the output type specified in the task description:
+- If the task says the output is a boolean decision, use {"type": "boolean"}
+- If the task says the output is an array, use {"type": "array", "items": ...}
+- If the task says the output is an integer, use {"type": "integer"}
+- Do NOT add nested objects unnecessarily
+- Match the schema to what the task description actually requires
 
 Generate precise, mathematically-sound schemas.
 """
@@ -375,24 +373,17 @@ Create complete Stage objects with:
 - Proper data flow connectivity
 - Clear final_key designation
 
-# CRITICAL: FINAL STAGE VALIDATION AND ENFORCEMENT
+# FINAL STAGE SCHEMA VALIDATION
 For the LAST stage in the plan:
 
-1. **Mandatory Schema Check**:
-   - For each write key: schema.properties[key]["type"] MUST be "boolean"
-   - NOT "object" with nested properties
-
-2. **Auto-Correction Procedure**:
-   - IF nested object detected in final stage schema
-   - THEN simplify to: {"type": "boolean"}
-
-   Example transformation:
-   BEFORE: {"decision": {"type": "object", "properties": {"holds": {"type": "boolean"}}}}
-   AFTER:  {"decision": {"type": "boolean"}}
-
-3. **Validation Check**:
-   - Verify: final_stage.output_schema.properties[final_key]["type"] == "boolean"
-   - If not, CRITICAL ERROR - must fix before returning plan
+1. **Match Task Description**: The final stage schema types MUST match what the task description specifies as output format.
+   - If the task says boolean output → use {"type": "boolean"}
+   - If the task says array output → use {"type": "array", "items": ...}
+   - If the task says integer output → use {"type": "integer"}
+2. **No Unnecessary Nesting**: Do NOT wrap simple types in nested objects.
+   - WRONG: {"decision": {"type": "object", "properties": {"holds": {"type": "boolean"}}}}
+   - RIGHT: {"decision": {"type": "boolean"}}
+3. **Respect the task**: Read the task description's CRITICAL OUTPUT FORMAT section carefully and generate matching schemas.
 
 Return the validated, aligned, complete Plan.
 """
@@ -509,11 +500,13 @@ Your output_schema MUST follow this pattern:
    - Mappings: specify object with patternProperties
 5. Include descriptions for clarity
 6. Consider compatibility with downstream stages
-7. **Final Stage Boolean Schema**:
-   - IF position indicates last stage (e.g., "stage 6 of 6")
-   - AND write key represents a decision/result
-   - THEN use simple boolean schema: {"type": "boolean"}
-   - DO NOT use nested objects for final boolean outputs
+7. **Final Stage Schema**:
+   - IF position indicates last stage (e.g., "stage 3 of 3")
+   - THEN use the output type specified in the task description's CRITICAL OUTPUT FORMAT
+   - For boolean tasks: use {"type": "boolean"}
+   - For array tasks: use {"type": "array", "items": ...}
+   - For integer tasks: use {"type": "integer"}
+   - DO NOT use nested objects for simple outputs
 
 # QUALITY CRITERIA
 - Prompt is significantly more detailed than batch generation
@@ -814,7 +807,7 @@ Return a complete, validated Plan.
                     f"Stage '{stage.id}': missing placeholders for {missing}"
                 )
 
-        # Validate final stage uses simple boolean schema
+        # Validate final stage does not use unnecessarily nested object schemas
         if plan.stages:
             final_stage = plan.stages[-1]
             final_key = plan.final_key or (final_stage.writes[0] if final_stage.writes else None)
@@ -822,24 +815,16 @@ Return a complete, validated Plan.
             if final_key and final_key in final_stage.output_schema.get('properties', {}):
                 final_schema = final_stage.output_schema['properties'][final_key]
 
-                # Check for nested object (forbidden)
+                # Check for nested object (forbidden — use simple types instead)
                 is_nested_object = (
                     final_schema.get('type') == 'object' and
                     'properties' in final_schema
                 )
 
-                # Check for simple boolean (required)
-                is_simple_boolean = final_schema.get('type') == 'boolean'
-
                 if is_nested_object:
                     errors.append(
                         f"Final stage '{final_stage.id}': key '{final_key}' uses nested object schema. "
-                        f"MUST be simple boolean: {{'type': 'boolean'}}. Found: {final_schema}"
-                    )
-                elif not is_simple_boolean:
-                    errors.append(
-                        f"Final stage '{final_stage.id}': key '{final_key}' must use boolean type. "
-                        f"Found: {final_schema.get('type')}"
+                        f"Use a simple type instead. Found: {final_schema}"
                     )
 
         return errors

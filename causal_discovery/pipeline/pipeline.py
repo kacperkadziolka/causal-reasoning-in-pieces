@@ -1,5 +1,4 @@
 import logging
-import time
 from typing import Any
 
 from tqdm import tqdm
@@ -43,19 +42,17 @@ class CausalDiscoveryPipeline:
 
 class BatchCasualDiscoveryPipeline:
     """
-    Pipeline that extend the CausalDiscoveryPipeline to handle batch processing with retries.
+    Pipeline that extends CausalDiscoveryPipeline to handle batch processing.
+    Failed samples flow through with None values and are collected at the end.
+    Retries are handled by the OpenAI SDK (max_retries on the client).
     """
-    def __init__(self, pipeline: CausalDiscoveryPipeline, batch_size: int = 4, max_retries: int = 3, retry_delay: float = 1.0):
+    def __init__(self, pipeline: CausalDiscoveryPipeline, batch_size: int = 4):
         """
-        :param batch_size: Batch size for retries.
         :param pipeline: Instance of the single-sample pipeline.
-        :param max_retries: Maximum number of retries per batch.
-        :param retry_delay: Delay (in seconds) between retries.
+        :param batch_size: Number of samples per batch.
         """
         self.pipeline = pipeline
         self.batch_size = batch_size
-        self.max_retries = max_retries
-        self.retry_delay = retry_delay
 
     def run_batch(self, input_samples: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[Any]]:
         results = []
@@ -67,19 +64,7 @@ class BatchCasualDiscoveryPipeline:
             batch_ids = [sample["sample_id"] for sample in batch]
             print(f"\nProcessing batch with sample IDs: {batch_ids}")
 
-            retries = 0
-            success = False
-            while retries < self.max_retries and not success:
-                try:
-                    batch_results = self.pipeline.run_batch(batch)
-                    results.extend(batch_results)
-                    success = True
-                except Exception as e:
-                    retries += 1
-                    logging.warning(f"Batch failed on attempt {retries}: {e}")
-                    time.sleep(self.retry_delay)
-            if not success:
-                batch_ids = [sample["sample_id"] for sample in batch]
-                failed_ids.extend(batch_ids)
-                logging.error(f"Max retries reached for batch with sample IDs: {batch_ids}. Skipping these samples.")
+            batch_results = self.pipeline.run_batch(batch)
+            results.extend(batch_results)
+
         return results, failed_ids

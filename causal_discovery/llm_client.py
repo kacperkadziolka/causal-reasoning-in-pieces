@@ -37,12 +37,12 @@ class OpenAIClient(BaseLLMClient):
         if not api_key:
             raise ValueError("API key not found. Please set the OPENAI_API_KEY environment variable.")
 
-        self.client: OpenAI = OpenAI(api_key=api_key)
-        self.async_client = AsyncOpenAI(api_key=api_key)
+        self.client: OpenAI = OpenAI(api_key=api_key, timeout=120.0, max_retries=3)
+        self.api_key = api_key
         logging.info(f"Loaded OpenAI model: {model_id}")
 
         self.model_id = model_id
-        self.semaphore = asyncio.Semaphore(concurrency)
+        self.concurrency = concurrency
 
 
     def complete(self, prompt: str) -> tuple[Optional[str], Optional[dict]]:
@@ -60,18 +60,31 @@ class OpenAIClient(BaseLLMClient):
         return asyncio.run(self._complete_batch_async(prompts))
 
     async def _complete_batch_async(self, prompts: list[str]) -> list[tuple[Optional[str], Optional[dict]]]:
-        async def _call(p: str) -> tuple[Optional[str], Optional[dict]]:
-            async with self.semaphore:
-                resp = await self.async_client.chat.completions.create(
-                    model=self.model_id,
-                    messages=[{"role": "user", "content": p}]
-                )
-            text = resp.choices[0].message.content
-            usage = resp.usage
-            return text, usage
+        async_client = AsyncOpenAI(api_key=self.api_key, timeout=120.0, max_retries=3)
+        semaphore = asyncio.Semaphore(self.concurrency)
 
-        tasks = [asyncio.create_task(_call(p)) for p in prompts]
-        return await asyncio.gather(*tasks)
+        async def _call(p: str) -> tuple[Optional[str], Optional[dict]]:
+            try:
+                async with semaphore:
+                    resp = await async_client.chat.completions.create(
+                        model=self.model_id,
+                        messages=[{"role": "user", "content": p}]
+                    )
+                return resp.choices[0].message.content, resp.usage
+            except Exception as e:
+                logging.error(f"LLM call failed: {e}")
+                return None, None
+
+        try:
+            tasks = []
+            for i, p in enumerate(prompts):
+                if i > 0:
+                    await asyncio.sleep(0.3)
+                tasks.append(asyncio.create_task(_call(p)))
+
+            return await asyncio.gather(*tasks)
+        finally:
+            await async_client.close()
 
 
 class HuggingFaceClient(BaseLLMClient):
@@ -141,9 +154,10 @@ class DeepSeekClient(BaseLLMClient):
         api_key = os.getenv('DEEPSEEK_API_KEY')
         if not api_key:
             raise ValueError("DEEPSEEK_API_KEY not found in environment variables.")
-        self.async_client = AsyncOpenAI(api_key=api_key, base_url="https://api.deepseek.com")
+        self.api_key = api_key
+        self.base_url = "https://api.deepseek.com"
         self.model_id = model_id
-        self.semaphore = asyncio.Semaphore(concurrency)
+        self.concurrency = concurrency
 
     def complete(self, prompt: str) -> tuple[str, Any]:
         """
@@ -153,16 +167,19 @@ class DeepSeekClient(BaseLLMClient):
         return asyncio.run(self._complete_async(prompt))
 
     async def _complete_async(self, prompt: str) -> tuple[str, Any]:
-        async with self.semaphore:
-            resp = await self.async_client.chat.completions.create(
+        async_client = AsyncOpenAI(api_key=self.api_key, base_url=self.base_url)
+        try:
+            resp = await async_client.chat.completions.create(
                 model=self.model_id,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.1,
                 stream=False,
             )
-        usage = resp.usage
-        text = resp.choices[0].message.content
-        return text, usage
+            usage = resp.usage
+            text = resp.choices[0].message.content
+            return text, usage
+        finally:
+            await async_client.close()
 
     def complete_batch(self, prompts: list[str]) -> list[tuple[str, Any]]:
         """
@@ -172,9 +189,12 @@ class DeepSeekClient(BaseLLMClient):
         return asyncio.run(self._complete_batch_async(prompts))
 
     async def _complete_batch_async(self, prompts: list[str]) -> list[tuple[str, Any]]:
+        async_client = AsyncOpenAI(api_key=self.api_key, base_url=self.base_url)
+        semaphore = asyncio.Semaphore(self.concurrency)
+
         async def _call(p: str) -> tuple[str, Any]:
-            async with self.semaphore:
-                resp = await self.async_client.chat.completions.create(
+            async with semaphore:
+                resp = await async_client.chat.completions.create(
                     model=self.model_id,
                     messages=[{"role": "user", "content": p}],
                     temperature=0.1,
@@ -184,5 +204,12 @@ class DeepSeekClient(BaseLLMClient):
             usage = resp.usage
             return text, usage
 
-        tasks = [asyncio.create_task(_call(p)) for p in prompts]
-        return await asyncio.gather(*tasks)
+        try:
+            tasks = []
+            for i, p in enumerate(prompts):
+                if i > 0:
+                    await asyncio.sleep(0.3)
+                tasks.append(asyncio.create_task(_call(p)))
+            return await asyncio.gather(*tasks)
+        finally:
+            await async_client.close()

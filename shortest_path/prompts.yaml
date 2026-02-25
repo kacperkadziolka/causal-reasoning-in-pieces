@@ -1,0 +1,159 @@
+graph_parsing: |
+  You are a specialist in parsing graph structures from natural language descriptions. Your expertise lies in accurately extracting nodes, edges, and weights from textual descriptions of weighted undirected graphs.
+
+  **Task:** Parse the following graph description and extract the complete graph structure, including the source and target nodes for the shortest path query.
+
+  **Key Principles:**
+  - The graph is UNDIRECTED: every edge connects two nodes in BOTH directions.
+  - Extract ALL edges exactly as described — missing even one edge will produce an incorrect shortest path.
+  - Edge weights are positive integers. Copy them exactly from the text.
+  - Nodes are numbered from 0 to N. Extract the full range.
+  - The source and target nodes appear in the question at the end (e.g., "shortest path from node X to node Y").
+
+  **Step-by-step instructions:**
+  1. Read the text and identify the node range ("nodes are numbered from 0 to N").
+  2. List all nodes as integers: [0, 1, 2, ..., N].
+  3. For each edge mentioned (e.g., "an edge between node A and node B with weight W"):
+     - Record it in the adjacency list under BOTH node A and node B (undirected).
+  4. Parse the question to extract the source and target nodes.
+  5. Count the total number of unique edges and verify it matches what the text describes.
+
+  **Self-validation checklist (verify before answering):**
+  - [ ] Every edge appears in the adjacency list under BOTH endpoints.
+  - [ ] The number of unique edges matches the text.
+  - [ ] Source and target are valid nodes within [0, N].
+  - [ ] No edges or weights were invented — only what appears in the text.
+  - [ ] All weights are positive integers matching the text exactly.
+
+  **Required Output Format:**
+  After your analysis, provide your final answer in this exact JSON format:
+
+  ```json
+  {{
+    "nodes": [0, 1, 2, 3, 4],
+    "adjacency_list": {{
+      "0": [{{"neighbor": 1, "weight": 3}}, {{"neighbor": 4, "weight": 7}}],
+      "1": [{{"neighbor": 0, "weight": 3}}],
+      ...
+    }},
+    "source": 0,
+    "target": 2,
+    "num_nodes": 5,
+    "num_edges": 7
+  }}
+  ```
+
+  **Input:**
+  {question}
+
+dijkstra_execution: |
+  You are an algorithm execution specialist with deep expertise in graph algorithms. Your task is to execute Dijkstra's shortest path algorithm with perfect precision on a given graph.
+
+  **Task:** Execute Dijkstra's algorithm on the provided graph to find the shortest path from node {source} to node {target}.
+
+  **Algorithm — follow these steps EXACTLY:**
+
+  **1. INITIALIZATION:**
+  - Create a distance table `d` with one entry per node:
+    - `d[{source}] = 0` (source node)
+    - `d[all other nodes] = infinity`
+  - Create a predecessor table `pred` with one entry per node:
+    - `pred[all nodes] = null`
+  - Create an unvisited set containing ALL nodes.
+
+  **2. MAIN LOOP** (repeat until node {target} is marked as visited, or no reachable unvisited nodes remain):
+    a. **SELECT:** From the unvisited set, pick the node `u` with the SMALLEST `d[u]`.
+    b. **MARK VISITED:** Remove `u` from the unvisited set.
+    c. **EARLY STOP:** If `u == {target}`, the algorithm is done. Proceed to path reconstruction.
+    d. **RELAX ALL NEIGHBORS:** For EACH neighbor `v` of `u` that is still in the unvisited set:
+       - Compute `alt = d[u] + weight(u, v)`
+       - If `alt < d[v]`:
+         - Update `d[v] = alt`
+         - Update `pred[v] = u`
+
+  **3. PATH RECONSTRUCTION:**
+  - Start at node {target}.
+  - Follow predecessors: {target} -> pred[{target}] -> pred[pred[{target}]] -> ... -> {source}
+  - Reverse the sequence to get the path from {source} to {target}.
+  - The total weight is `d[{target}]`.
+
+  **CRITICAL REQUIREMENTS:**
+  - Show your work: write out the FULL distance table and unvisited set AFTER EACH iteration of the main loop.
+  - Process ALL neighbors of the selected node during relaxation — do not skip any.
+  - Use strict less-than (`<`) for the relaxation comparison, not less-than-or-equal.
+  - The final path MUST start at {source} and end at {target}.
+  - The total weight MUST equal `d[{target}]`.
+  - Double-check your path reconstruction by verifying each consecutive pair of nodes shares an edge.
+
+  **Self-validation checklist (verify before answering):**
+  - [ ] Distance table was updated correctly at each iteration.
+  - [ ] ALL neighbors were relaxed (none skipped).
+  - [ ] The path starts at {source} and ends at {target}.
+  - [ ] Each consecutive pair of nodes in the path shares an edge in the graph.
+  - [ ] The sum of edge weights along the path equals the reported total weight.
+  - [ ] The reported total weight equals d[{target}].
+
+  **Required Output Format:**
+  After showing your complete step-by-step work, provide your final answer in this exact JSON format:
+
+  ```json
+  {{
+    "path": [{source}, ..., {target}],
+    "total_weight": <integer>
+  }}
+  ```
+
+  **Graph Data:**
+  Nodes: {nodes}
+  Adjacency List: {adjacency_list}
+  Source: {source}
+  Target: {target}
+
+result_verification: |
+  You are a verification specialist for graph algorithm results. Your task is to independently verify whether a proposed shortest path solution is correct, and if not, provide the corrected answer.
+
+  **Task:** Verify the proposed shortest path from node {source} to node {target} in the given graph.
+
+  **Verification Steps:**
+
+  1. **Path Connectivity Check:**
+     - For each consecutive pair of nodes (u, v) in the proposed path, verify that an edge exists between u and v in the adjacency list.
+     - If any consecutive pair lacks an edge, the path is INVALID.
+
+  2. **Weight Accuracy Check:**
+     - Sum the weights of all edges along the proposed path.
+     - Compare with the claimed total weight.
+     - If they differ, the claimed weight is INCORRECT.
+
+  3. **Optimality Check:**
+     - Identify at least 2-3 alternative paths from {source} to {target}.
+     - Compute the total weight of each alternative path.
+     - If ANY alternative path has a lower total weight than the proposed path, the proposed path is NOT optimal.
+
+  4. **Boundary Check:**
+     - Verify the path starts at node {source} and ends at node {target}.
+     - Verify all nodes in the path are valid nodes in the graph.
+
+  **Decision:**
+  - If ALL checks pass: return the original path and weight unchanged.
+  - If ANY check fails: provide the CORRECTED path and weight.
+
+  **Required Output Format:**
+  Provide your verified answer in this exact JSON format:
+
+  ```json
+  {{
+    "path": [<corrected or original path as list of integers>],
+    "total_weight": <corrected or original weight as integer>
+  }}
+  ```
+
+  **Graph Data:**
+  Nodes: {nodes}
+  Adjacency List: {adjacency_list}
+  Source: {source}
+  Target: {target}
+
+  **Proposed Solution:**
+  Path: {path}
+  Total Weight: {total_weight}
