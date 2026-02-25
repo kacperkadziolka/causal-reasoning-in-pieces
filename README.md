@@ -1,7 +1,5 @@
 # Causal Reasoning in Pieces
 
-<img src="https://img.shields.io/badge/NeurIPS-Submission-blue" alt="NeurIPS Submission"></img> <img src="https://img.shields.io/badge/python-3.12+-blue.svg" alt="Python 39"></img>
-
 A modular in-context pipeline for causal discovery using Large Language Models. This project implements a multi-stage approach to causal reasoning that breaks down complex causal discovery tasks into smaller, specialized reasoning steps. The main pipeline implementation is located in the `/causal_discovery` directory, while baseline experiment implementations can be found in the `/causal_discovery_baseline` directory.
 
 ## Introduction
